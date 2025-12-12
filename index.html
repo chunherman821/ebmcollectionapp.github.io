@@ -50,13 +50,15 @@
 
         <div class="section">
             <h2>Today's EBM Provided</h2>
-            <label>Total volume prepared today (ml):</label>
-            <input type="number" id="today-ml" min="0" step="1" placeholder="e.g., 480">
+            <label>Volume per Bottle (ml):</label>
+            <input type="number" id="volume-per-bottle" min="1" step="1" placeholder="60">
+            <label>Number of Bottles:</label>
+            <input type="number" id="num-bottles" min="1" step="1" placeholder="4">
 
-            <button onclick="saveTodayTotal()">Save Today's Total</button>
+            <button onclick="saveTodayProvision()">Save Today's Provision</button>
             <p style="font-size:14px;color:#666;margin-top:10px">
-                You can change and re-save this number anytime today.<br>
-                It will overwrite the previous entry.
+                You can change and re-save anytime today.<br>
+                It overwrites the previous entry.
             </p>
         </div>
 
@@ -85,7 +87,7 @@
 
         <h3>Ward Overview — Today Only</h3>
         <table id="beds-table">
-            <thead><tr><th>Bed ID</th><th>Target Today</th><th>Provided Today</th><th>Status</th></tr></thead>
+            <thead><tr><th>Bed ID</th><th>Target Today</th><th>Mother's Prepared Today</th><th>Donated Required</th></tr></thead>
             <tbody></tbody>
         </table>
 
@@ -97,7 +99,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
 
     <script>
-       // Your web app's Firebase configuration
+        // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyB223cqRnq49791LU9P7SU9TLJmYFkegJ4",
   authDomain: "nicu-ebm-app.firebaseapp.com",
@@ -105,7 +107,7 @@ const firebaseConfig = {
   storageBucket: "nicu-ebm-app.firebasestorage.app",
   messagingSenderId: "191753868886",
   appId: "1:191753868886:web:972dfce99ff2c2edbd0df7"
-}
+};
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
@@ -113,7 +115,7 @@ const firebaseConfig = {
         let currentUser = null;
         const hcwPassword = "hcwpass";
 
-        // Real-time update for HCW table
+        // Real-time listener for HCW
         db.collection("users").onSnapshot(() => {
             if (currentUser === 'hcw') updateBedsTable();
         });
@@ -128,6 +130,8 @@ const firebaseConfig = {
                     password: pass,
                     volumePerFeed: 0,
                     numFeeds: 0,
+                    todayVolumePerBottle: 0,
+                    todayNumBottles: 0,
                     todayMl: 0,
                     lastUpdate: ""
                 }).then(() => alert("Registered!"));
@@ -164,18 +168,22 @@ const firebaseConfig = {
             document.getElementById('hcw-section').style.display = 'none';
         }
 
-        // Parent: Save today's total (overwrites)
-        function saveTodayTotal() {
-            const ml = parseInt(document.getElementById('today-ml').value);
-            if (isNaN(ml) || ml < 0) return alert("Enter valid number");
+        // Parent: Save today's provision (overwrites)
+        function saveTodayProvision() {
+            const vol = parseInt(document.getElementById('volume-per-bottle').value);
+            const num = parseInt(document.getElementById('num-bottles').value);
+            if (isNaN(vol) || isNaN(num) || vol < 0 || num < 0) return alert("Enter valid numbers");
 
+            const ml = vol * num;
             const today = new Date().toISOString().slice(0,10);
 
             db.collection("users").doc(currentUser).update({
+                todayVolumePerBottle: vol,
+                todayNumBottles: num,
                 todayMl: ml,
                 lastUpdate: today
             }).then(() => {
-                alert(`Saved! Today's total = ${ml} ml`);
+                alert(`Saved! ${vol} ml × ${num} = ${ml} ml`);
                 loadTodayData();
             });
         }
@@ -184,9 +192,10 @@ const firebaseConfig = {
             db.collection("users").doc(currentUser).get().then(doc => {
                 const d = doc.data();
                 const target = (d.volumePerFeed || 0) * (d.numFeeds || 0);
-                const todayMl = d.todayMl || 0;
+                const todayMl = d.lastUpdate === new Date().toISOString().slice(0,10) ? (d.todayMl || 0) : 0;
 
-                document.getElementById('today-ml').value = todayMl;
+                document.getElementById('volume-per-bottle').value = d.todayVolumePerBottle || '';
+                document.getElementById('num-bottles').value = d.todayNumBottles || '';
 
                 document.getElementById('stats').innerHTML = `
                     <strong>Today's Target:</strong> ${d.volumePerFeed||0} ml × ${d.numFeeds||0} feeds = <strong>${target} ml</strong><br>
@@ -208,7 +217,7 @@ const firebaseConfig = {
                 .then(() => alert("Target updated!"));
         }
 
-        // HCW: Table — shows only TODAY
+        // HCW: Table
         function updateBedsTable() {
             const tbody = document.querySelector('#beds-table tbody');
             tbody.innerHTML = '';
@@ -218,16 +227,16 @@ const firebaseConfig = {
                 snap.forEach(doc => {
                     const d = doc.data();
                     const target = (d.volumePerFeed || 0) * (d.numFeeds || 0);
-                    const provided = (d.lastUpdate === today) ? (d.todayMl || 0) : 0;
+                    const prepared = d.lastUpdate === today ? (d.todayMl || 0) : 0;
+                    const donated = Math.max(0, target - prepared);
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td><strong>${doc.id}</strong></td>
                         <td>${target} ml</td>
-                        <td>${provided} ml</td>
-                        <td>${provided >= target ? 'Complete' : 'Pending'}</td>
+                        <td>${prepared} ml</td>
+                        <td>${donated} ml</td>
                     `;
-                    if (provided >= target) row.style.background = '#e8f5e9';
                     tbody.appendChild(row);
                 });
             });
