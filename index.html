@@ -9,10 +9,11 @@
         body{font-family:Arial,sans-serif;max-width:500px;margin:20px auto;padding:20px;background:#f5f7fa;color:#333}
         h1,h2{text-align:center;color:#2c3e50}
         label{display:block;margin-top:15px;font-weight:bold}
-        input,button{width:100%;padding:12px;margin-top:8px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;font-size:16px}
+        input,select,button{width:100%;padding:12px;margin-top:8px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;font-size:16px}
         button{background:#4CAF50;color:white;border:none;cursor:pointer;margin-top:20px}
         button:hover{background:#45a049}
         button.refresh{background:#9C27B0}
+        button.delete{background:#d32f2f}
         button.export{background:#1976D2}
         button.logout{background:#607D8B}
         .section{background:white;padding:20px;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,0.1);margin-top:20px}
@@ -39,6 +40,12 @@
         <input type="password" id="password">
         <button onclick="login()">Login</button>
         <button onclick="registerParent()" style="background:#FFC107">Register New Bed</button>
+
+        <div class="instructions">
+            <strong>ID = Baby initials + bed number</strong><br>
+            Examples: CTM01, LKM101, ABC08<br>
+            <small>Case doesn't matter — bed23 and BED23 are the same</small>
+        </div>
     </div>
 
     <!-- Parent View -->
@@ -53,6 +60,8 @@
             <input type="number" id="num-bottles" min="1" step="1" placeholder="8">
 
             <button onclick="saveTodayProvision()">Save Today's Provision</button>
+            <p style="font-size:14px;color:#666;margin-top:10px">
+                You can update anytime today — it overwrites the previous entry.</p>
         </div>
 
         <button class="refresh" onclick="loadTodayData()">Refresh</button>
@@ -76,7 +85,7 @@
         <input type="number" id="hcw-num-feeds" min="1" step="1">
 
         <button onclick="updateRequirement()">Update Target</button>
-
+        <button class="delete" onclick="deleteBed()">Delete Selected Bed</button>
         <button class="export" onclick="exportToExcel()">Export Today's Data to Excel</button>
 
         <div class="live">Live — updates in seconds</div>
@@ -119,16 +128,23 @@ const firebaseConfig = {
         let currentUser = null;
         const hcwPassword = "hcwpass";
 
+        // Real-time update
         db.collection("users").onSnapshot(() => {
             if (currentUser === 'hcw') updateBedsTable();
         });
 
+        function normalizeId(id) {
+            return id.trim().toUpperCase();
+        }
+
         function registerParent() {
-            const id = document.getElementById('user-id').value.trim().toUpperCase();
-            pass = document.getElementById('password').value;
-            if (!id || !pass) return alert("Fill both");
+            const rawId = document.getElementById('user-id').value;
+            const id = normalizeId(rawId);
+            const pass = document.getElementById('password').value;
+            if (!rawId || !pass) return alert("Fill both fields");
+
             db.collection("users").doc(id).get().then(s => {
-                if (s.exists) return alert("Already exists");
+                if (s.exists) return alert("This bed ID already exists (case-insensitive)");
                 db.collection("users").doc(id).set({
                     password: pass,
                     volumePerFeed: 0,
@@ -136,13 +152,19 @@ const firebaseConfig = {
                     todayVolumePerBottle: 0,
                     todayNumBottles: 0,
                     todayMl: 0,
-                    lastUpdate: ""
-                }).then(() => alert("Registered!"));
+                    lastUpdate: "",
+                    displayId: rawId  // keep original case for display
+                }).then(() => {
+                    alert("Registered successfully!");
+                    document.getElementById('user-id').value = '';
+                    document.getElementById('password').value = '';
+                });
             });
         }
 
         function login() {
-            let id = document.getElementById('user-id').value.trim().toUpperCase();
+            const rawId = document.getElementById('user-id').value;
+            const id = normalizeId(rawId);
             const pass = document.getElementById('password').value;
 
             if (id === 'HCW' && pass === hcwPassword) {
@@ -159,7 +181,7 @@ const firebaseConfig = {
                 currentUser = id;
                 document.getElementById('login-section').style.display = 'none';
                 document.getElementById('parent-section').style.display = 'block';
-                document.getElementById('current-bed').textContent = id;
+                document.getElementById('current-bed').textContent = doc.data().displayId || id;
                 loadTodayData();
             });
         }
@@ -218,9 +240,20 @@ const firebaseConfig = {
             const bed = document.getElementById('hcw-bed-select').value;
             const vol = parseInt(document.getElementById('hcw-volume-per-feed').value);
             const feeds = parseInt(document.getElementById('hcw-num-feeds').value);
-            if (!bed || isNaN(vol) || isNaN(feeds)) return alert("Check fields");
+            if (!bed || isNaN(vol) || isNaN(feeds)) return alert("Check all fields");
             db.collection("users").doc(bed).set({ volumePerFeed: vol, numFeeds: feeds }, { merge: true })
                 .then(() => alert("Target updated!"));
+        }
+
+        function deleteBed() {
+            const bed = document.getElementById('hcw-bed-select').value;
+            if (!bed) return alert("Select a bed first");
+            if (!confirm(`Delete bed ${bed} forever?`)) return;
+            db.collection("users").doc(bed).delete().then(() => {
+                alert("Bed deleted");
+                populateBedSelect();
+                updateBedsTable();
+            });
         }
 
         function updateBedsTable() {
@@ -231,6 +264,7 @@ const firebaseConfig = {
             db.collection("users").get().then(snap => {
                 snap.forEach(doc => {
                     const d = doc.data();
+                    const display = d.displayId || doc.id;
                     const target = (d.volumePerFeed || 0) * (d.numFeeds || 0);
                     const vol = d.lastUpdate === today ? (d.todayVolumePerBottle || 0) : 0;
                     const bottles = d.lastUpdate === today ? (d.todayNumBottles || 0) : 0;
@@ -239,7 +273,7 @@ const firebaseConfig = {
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td><strong>${doc.id}</strong></td>
+                        <td><strong>${display}</strong></td>
                         <td>${d.volumePerFeed||0} ml × ${d.numFeeds||0} feeds<br><small>(${target} ml)</small></td>
                         <td>${vol} ml × ${bottles} bottles</td>
                         <td><strong>${total} ml</strong></td>
@@ -253,17 +287,17 @@ const firebaseConfig = {
 
         function populateBedSelect() {
             const sel = document.getElementById('hcw-bed-select');
-            sel.innerHTML = '<option value="">-- Select --</option>';
+            sel.innerHTML = '<option value="">-- Select Bed --</option>';
             db.collection("users").get().then(s => {
                 s.forEach(d => {
                     let opt = document.createElement('option');
-                    opt.value = d.id; opt.textContent = d.id;
+                    opt.value = d.id;
+                    opt.textContent = d.data().displayId || d.id;
                     sel.appendChild(opt);
                 });
             });
         }
 
-        // EXPORT TO EXCEL BUTTON — NOW WORKING
         function exportToExcel() {
             let csv = "Bed ID,Target (ml),Target Feeds,Mother Volume per Bottle,Mother Bottles,Mother Total,PDBM Required\n";
             const today = new Date().toISOString().slice(0,10);
@@ -271,20 +305,21 @@ const firebaseConfig = {
             db.collection("users").get().then(snap => {
                 snap.forEach(doc => {
                     const d = doc.data();
+                    const display = d.displayId || doc.id;
                     const target = (d.volumePerFeed || 0) * (d.numFeeds || 0);
                     const vol = d.lastUpdate === today ? (d.todayVolumePerBottle || 0) : 0;
                     const bottles = d.lastUpdate === today ? (d.todayNumBottles || 0) : 0;
                     const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
                     const pdbm = Math.max(0, target - total);
 
-                    csv += `${doc.id},${target},${d.numFeeds||0},${vol},${bottles},${total},${pdbm}\n`;
+                    csv += `${display},${target},${d.numFeeds||0},${vol},${bottles},${total},${pdbm}\n`;
                 });
 
                 const blob = new Blob([csv], {type: 'text/csv'});
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `EBM_Ward_Today_${today}.csv`;
+                a.download = `EBM_Ward_${today}.csv`;
                 a.click();
             });
         }
