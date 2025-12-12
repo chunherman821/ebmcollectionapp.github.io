@@ -13,6 +13,7 @@
         button{background:#4CAF50;color:white;border:none;cursor:pointer;margin-top:20px}
         button:hover{background:#45a049}
         button.refresh{background:#9C27B0}
+        button.export{background:#1976D2}
         button.logout{background:#607D8B}
         .section{background:white;padding:20px;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,0.1);margin-top:20px}
         #stats{margin-top:20px;padding:15px;background:#e8f5e9;border-radius:8px;font-size:18px}
@@ -21,8 +22,9 @@
         .instructions{font-size:14px;color:#555;margin-top:15px;background:#fff;padding:15px;border-radius:8px}
         table{width:100%;margin-top:20px;border-collapse:collapse}
         th,td{padding:10px;border:1px solid #ddd;text-align:center}
-        th{background:#f0f0f0}
+        th{background:#e3f2fd;color:#1565c0}
         .live{font-size:12px;color:#4CAF50;text-align:center;margin:10px 0}
+        .celebration{font-size:24px;text-align:center;margin:20px 0;color:#d81b60}
     </style>
 </head>
 <body>
@@ -32,16 +34,11 @@
     <div id="login-section" class="section">
         <h2>Login</h2>
         <label>ID (e.g., CTM01):</label>
-        <input type="text" id="user-id" placeholder="e.g., 123">
+        <input type="text" id="user-id" placeholder="e.g., CTM01">
         <label>Password:</label>
         <input type="password" id="password">
         <button onclick="login()">Login</button>
-        <button onclick="registerParent()" style="background:#FFC107;margin-top:10px;">Register New Bed</button>
-
-        <div class="instructions">
-            <strong>ID = Baby initials + bed number</strong><br>
-            Examples: CTM01, LKM101, ABC08
-        </div>
+        <button onclick="registerParent()" style="background:#FFC107">Register New Bed</button>
     </div>
 
     <!-- Parent View -->
@@ -53,13 +50,9 @@
             <label>Volume per Bottle (ml):</label>
             <input type="number" id="volume-per-bottle" min="1" step="1" placeholder="60">
             <label>Number of Bottles:</label>
-            <input type="number" id="num-bottles" min="1" step="1" placeholder="4">
+            <input type="number" id="num-bottles" min="1" step="1" placeholder="8">
 
             <button onclick="saveTodayProvision()">Save Today's Provision</button>
-            <p style="font-size:14px;color:#666;margin-top:10px">
-                You can change and re-save anytime today.<br>
-                It overwrites the previous entry.
-            </p>
         </div>
 
         <button class="refresh" onclick="loadTodayData()">Refresh</button>
@@ -67,6 +60,7 @@
 
         <div id="stats"></div>
         <div id="today-total">Today's Total: 0 ml</div>
+        <div id="celebration" class="celebration" style="display:none"></div>
     </div>
 
     <!-- HCW View -->
@@ -83,11 +77,21 @@
 
         <button onclick="updateRequirement()">Update Target</button>
 
+        <button class="export" onclick="exportToExcel()">Export Today's Data to Excel</button>
+
         <div class="live">Live — updates in seconds</div>
 
-        <h3>Ward Overview — Today Only</h3>
+        <h3>Ward Overview — Today</h3>
         <table id="beds-table">
-            <thead><tr><th>Bed ID</th><th>Target Today</th><th>Mother's Prepared Today</th><th>Donated Required</th></tr></thead>
+            <thead>
+                <tr>
+                    <th>Bed ID</th>
+                    <th>Target Today</th>
+                    <th>Mother's Bottles</th>
+                    <th>Mother's Total</th>
+                    <th>PDBM Required</th>
+                </tr>
+            </thead>
             <tbody></tbody>
         </table>
 
@@ -115,14 +119,13 @@ const firebaseConfig = {
         let currentUser = null;
         const hcwPassword = "hcwpass";
 
-        // Real-time listener for HCW
         db.collection("users").onSnapshot(() => {
             if (currentUser === 'hcw') updateBedsTable();
         });
 
         function registerParent() {
             const id = document.getElementById('user-id').value.trim().toUpperCase();
-            const pass = document.getElementById('password').value;
+            pass = document.getElementById('password').value;
             if (!id || !pass) return alert("Fill both");
             db.collection("users").doc(id).get().then(s => {
                 if (s.exists) return alert("Already exists");
@@ -168,11 +171,10 @@ const firebaseConfig = {
             document.getElementById('hcw-section').style.display = 'none';
         }
 
-        // Parent: Save today's provision (overwrites)
         function saveTodayProvision() {
             const vol = parseInt(document.getElementById('volume-per-bottle').value);
             const num = parseInt(document.getElementById('num-bottles').value);
-            if (isNaN(vol) || isNaN(num) || vol < 0 || num < 0) return alert("Enter valid numbers");
+            if (isNaN(vol) || isNaN(num) || vol <= 0 || num <= 0) return alert("Enter valid numbers");
 
             const ml = vol * num;
             const today = new Date().toISOString().slice(0,10);
@@ -183,7 +185,12 @@ const firebaseConfig = {
                 todayMl: ml,
                 lastUpdate: today
             }).then(() => {
-                alert(`Saved! ${vol} ml × ${num} = ${ml} ml`);
+                document.getElementById('celebration').innerHTML = `
+                    Well done! You have done a great job!<br>
+                    Your baby thanks you so much!
+                `;
+                document.getElementById('celebration').style.display = 'block';
+                setTimeout(() => document.getElementById('celebration').style.display = 'none', 6000);
                 loadTodayData();
             });
         }
@@ -199,7 +206,7 @@ const firebaseConfig = {
 
                 document.getElementById('stats').innerHTML = `
                     <strong>Today's Target:</strong> ${d.volumePerFeed||0} ml × ${d.numFeeds||0} feeds = <strong>${target} ml</strong><br>
-                    <strong>Today's Provided:</strong> ${todayMl} ml
+                    <strong>Today's Provided:</strong> ${d.todayVolumePerBottle||0} ml × ${d.todayNumBottles||0} bottles = <strong>${todayMl} ml</strong>
                 `;
 
                 document.getElementById('today-total').textContent = `Today's Total: ${todayMl} ml`;
@@ -207,7 +214,6 @@ const firebaseConfig = {
             });
         }
 
-        // HCW: Update target
         function updateRequirement() {
             const bed = document.getElementById('hcw-bed-select').value;
             const vol = parseInt(document.getElementById('hcw-volume-per-feed').value);
@@ -217,7 +223,6 @@ const firebaseConfig = {
                 .then(() => alert("Target updated!"));
         }
 
-        // HCW: Table
         function updateBedsTable() {
             const tbody = document.querySelector('#beds-table tbody');
             tbody.innerHTML = '';
@@ -227,16 +232,20 @@ const firebaseConfig = {
                 snap.forEach(doc => {
                     const d = doc.data();
                     const target = (d.volumePerFeed || 0) * (d.numFeeds || 0);
-                    const prepared = d.lastUpdate === today ? (d.todayMl || 0) : 0;
-                    const donated = Math.max(0, target - prepared);
+                    const vol = d.lastUpdate === today ? (d.todayVolumePerBottle || 0) : 0;
+                    const bottles = d.lastUpdate === today ? (d.todayNumBottles || 0) : 0;
+                    const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
+                    const pdbm = Math.max(0, target - total);
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td><strong>${doc.id}</strong></td>
-                        <td>${target} ml</td>
-                        <td>${prepared} ml</td>
-                        <td>${donated} ml</td>
+                        <td>${d.volumePerFeed||0} ml × ${d.numFeeds||0} feeds<br><small>(${target} ml)</small></td>
+                        <td>${vol} ml × ${bottles} bottles</td>
+                        <td><strong>${total} ml</strong></td>
+                        <td><strong>${pdbm} ml</strong></td>
                     `;
+                    if (pdbm === 0) row.style.background = '#e8f5e9';
                     tbody.appendChild(row);
                 });
             });
@@ -251,6 +260,32 @@ const firebaseConfig = {
                     opt.value = d.id; opt.textContent = d.id;
                     sel.appendChild(opt);
                 });
+            });
+        }
+
+        // EXPORT TO EXCEL BUTTON — NOW WORKING
+        function exportToExcel() {
+            let csv = "Bed ID,Target (ml),Target Feeds,Mother Volume per Bottle,Mother Bottles,Mother Total,PDBM Required\n";
+            const today = new Date().toISOString().slice(0,10);
+
+            db.collection("users").get().then(snap => {
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const target = (d.volumePerFeed || 0) * (d.numFeeds || 0);
+                    const vol = d.lastUpdate === today ? (d.todayVolumePerBottle || 0) : 0;
+                    const bottles = d.lastUpdate === today ? (d.todayNumBottles || 0) : 0;
+                    const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
+                    const pdbm = Math.max(0, target - total);
+
+                    csv += `${doc.id},${target},${d.numFeeds||0},${vol},${bottles},${total},${pdbm}\n`;
+                });
+
+                const blob = new Blob([csv], {type: 'text/csv'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `EBM_Ward_Today_${today}.csv`;
+                a.click();
             });
         }
     </script>
