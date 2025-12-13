@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EBM Collection App</title>
-    <link rel="icon" href="https://img.freepik.com/premium-vector/kawaii-cute-feeding-bottle-cartoon-vector-illustration_1120558-48308.jpg">
+    <!-- New baby-friendly icon: Mother holding newborn (no bottle/pacifier) -->
+    <link rel="icon" href="https://thumbs.dreamstime.com/b/mother-holding-newborn-baby-heartwarming-illustration-tenderly-her-peacefully-sleeping-wrapped-blue-blanket-406661905.jpg">
     <style>
         body{font-family:Arial,sans-serif;max-width:500px;margin:20px auto;padding:20px;background:#f5f7fa;color:#333}
         h1,h2{text-align:center;color:#2c3e50}
@@ -29,7 +30,7 @@
     </style>
 </head>
 <body>
-    <h1>EBM Collection App</h1>
+    <h1>🍼 EBM Collection App</h1>
 
     <!-- Login -->
     <div id="login-section" class="section">
@@ -79,9 +80,9 @@
         <label>Select Bed:</label>
         <select id="hcw-bed-select"></select>
 
-        <label>Volume per Feed (ml):</label>
+        <label>Volume per Bottle (ml):</label>
         <input type="number" id="hcw-volume-per-feed" min="0" step="1">
-        <label>Feeds per Day:</label>
+        <label>Bottles per Day:</label>
         <input type="number" id="hcw-num-feeds" min="1" step="1">
 
         <button onclick="updateRequirement()">Update Target</button>
@@ -120,7 +121,8 @@ const firebaseConfig = {
   storageBucket: "nicu-ebm-app.firebasestorage.app",
   messagingSenderId: "191753868886",
   appId: "1:191753868886:web:972dfce99ff2c2edbd0df7"
-};
+}
+;
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
@@ -128,7 +130,6 @@ const firebaseConfig = {
         let currentUser = null;
         const hcwPassword = "hcwpass";
 
-        // Real-time update
         db.collection("users").onSnapshot(() => {
             if (currentUser === 'hcw') updateBedsTable();
         });
@@ -153,7 +154,7 @@ const firebaseConfig = {
                     todayNumBottles: 0,
                     todayMl: 0,
                     lastUpdate: "",
-                    displayId: rawId  // keep original case for display
+                    displayId: rawId
                 }).then(() => {
                     alert("Registered successfully!");
                     document.getElementById('user-id').value = '';
@@ -209,7 +210,7 @@ const firebaseConfig = {
             }).then(() => {
                 document.getElementById('celebration').innerHTML = `
                     Well done! You have done a great job!<br>
-                    Your baby thanks you so much!
+                    Your baby thanks you so much! 💕🥳
                 `;
                 document.getElementById('celebration').style.display = 'block';
                 setTimeout(() => document.getElementById('celebration').style.display = 'none', 6000);
@@ -227,7 +228,7 @@ const firebaseConfig = {
                 document.getElementById('num-bottles').value = d.todayNumBottles || '';
 
                 document.getElementById('stats').innerHTML = `
-                    <strong>Today's Target:</strong> ${d.volumePerFeed||0} ml × ${d.numFeeds||0} feeds = <strong>${target} ml</strong><br>
+                    <strong>Today's Target:</strong> ${d.volumePerFeed||0} ml × ${d.numFeeds||0} bottles = <strong>${target} ml</strong><br>
                     <strong>Today's Provided:</strong> ${d.todayVolumePerBottle||0} ml × ${d.todayNumBottles||0} bottles = <strong>${todayMl} ml</strong>
                 `;
 
@@ -274,7 +275,7 @@ const firebaseConfig = {
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td><strong>${display}</strong></td>
-                        <td>${d.volumePerFeed||0} ml × ${d.numFeeds||0} feeds<br><small>(${target} ml)</small></td>
+                        <td>${d.volumePerFeed||0} ml × ${d.numFeeds||0} bottles<br><small>(${target} ml)</small></td>
                         <td>${vol} ml × ${bottles} bottles</td>
                         <td><strong>${total} ml</strong></td>
                         <td><strong>${pdbm} ml</strong></td>
@@ -299,7 +300,7 @@ const firebaseConfig = {
         }
 
         function exportToExcel() {
-            let csv = "Bed ID,Target (ml),Target Feeds,Mother Volume per Bottle,Mother Bottles,Mother Total,PDBM Required\n";
+            let csv = "Bed ID,Target (ml),Target Bottles,Mother Volume per Bottle,Mother Bottles,Mother Total,PDBM Required\n";
             const today = new Date().toISOString().slice(0,10);
 
             db.collection("users").get().then(snap => {
@@ -326,4 +327,3 @@ const firebaseConfig = {
     </script>
 </body>
 </html>
-
