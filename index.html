@@ -166,7 +166,6 @@
             return id.trim().toUpperCase();
         }
 
-        // NEW: Register from admin panel only
         function registerNewBed() {
             const rawId = document.getElementById('new-bed-id').value;
             const id = normalizeId(rawId);
@@ -232,7 +231,6 @@
 
             const ml = vol * num;
             const today = new Date().toISOString().slice(0,10);
-            const now = new Date();
 
             db.collection("users").doc(currentUser).update({
                 todayVolumePerBottle: vol,
@@ -270,11 +268,10 @@
 
                 // Last updated timestamp
                 if (d.lastUpdateTimestamp) {
-                    d.lastUpdateTimestamp.toDate().then(ts => {
-                        const dateStr = ts.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-                        const timeStr = ts.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-                        document.getElementById('last-updated').textContent = `Last updated on ${dateStr} at ${timeStr}`;
-                    });
+                    const ts = d.lastUpdateTimestamp.toDate();
+                    const dateStr = ts.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+                    const timeStr = ts.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                    document.getElementById('last-updated').textContent = `Last updated on ${dateStr} at ${timeStr}`;
                 } else {
                     document.getElementById('last-updated').textContent = "";
                 }
@@ -286,8 +283,16 @@
             const vol = parseInt(document.getElementById('hcw-volume-per-feed').value);
             const feeds = parseInt(document.getElementById('hcw-num-feeds').value);
             if (!bed || isNaN(vol) || isNaN(feeds)) return alert("Check all fields");
-            db.collection("users").doc(bed).set({ volumePerFeed: vol, numFeeds: feeds }, { merge: true })
-                .then(() => alert("Target updated!"));
+
+            db.collection("users").doc(bed).update({
+                volumePerFeed: vol,
+                numFeeds: feeds,
+                lastUpdateTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                alert("Target updated!");
+                document.getElementById('hcw-volume-per-feed').value = '';
+                document.getElementById('hcw-num-feeds').value = '';
+            });
         }
 
         function deleteBed() {
@@ -316,7 +321,7 @@
                     const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
                     const pdbm = Math.max(0, target - total);
 
-                    let lastUpdated = "";
+                    let lastUpdated = "-";
                     if (d.lastUpdateTimestamp) {
                         const ts = d.lastUpdateTimestamp.toDate();
                         const dateStr = ts.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
@@ -331,7 +336,7 @@
                         <td>${vol} ml × ${bottles} bottles</td>
                         <td><strong>${total} ml</strong></td>
                         <td><strong>${pdbm} ml</strong></td>
-                        <td>${lastUpdated || "-"}</td>
+                        <td>${lastUpdated}</td>
                     `;
                     if (pdbm === 0) row.style.background = '#e8f5e9';
                     tbody.appendChild(row);
