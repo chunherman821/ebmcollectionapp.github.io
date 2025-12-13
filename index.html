@@ -150,6 +150,7 @@
                             <th>Target (ml × bottles)</th>
                             <th>EBM (ml × bottles)</th>
                             <th>PDBM Needed (ml)</th>
+                            <th>PDBM Bottles (per baby)</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -412,13 +413,13 @@
             });
         }
 
-        // PDBM Aliquot Calculator - Fixed variable scope
+        // PDBM Aliquot Calculator - Now shows per-baby bottle breakdown
         function calculatePDBM() {
             const resultsDiv = document.getElementById('aliquot-results');
             const tableBody = document.getElementById('aliquot-table').querySelector('tbody');
             tableBody.innerHTML = '';
             let total_pdbm = 0;
-            const today = new Date().toISOString().slice(0,10);  // Fixed: defined 'today' here
+            const today = new Date().toISOString().slice(0,10);
 
             db.collection("users").get().then(snap => {
                 snap.forEach(doc => {
@@ -432,27 +433,37 @@
                     const ebmMl = d.lastUpdate === today ? (d.todayMl || 0) : 0;
                     const pdbmMl = Math.max(0, targetMl - ebmMl);
 
+                    // Per-baby bottle calculation
+                    let num_125 = Math.floor(pdbmMl / 125);
+                    let remaining = pdbmMl % 125;
+                    let num_50 = Math.ceil(remaining / 50);
+                    let perBabyBottles = "";
+                    if (num_125 > 0) perBabyBottles += `${num_125} × 125ml`;
+                    if (num_50 > 0) perBabyBottles += (perBabyBottles ? " + " : "") + `${num_50} × 50ml`;
+                    if (pdbmMl === 0) perBabyBottles = "None";
+
                     const row = tableBody.insertRow();
                     row.innerHTML = `
                         <td>${display}</td>
                         <td>${targetVol} ml × ${targetBottles} bottles</td>
                         <td>${ebmVol} ml × ${ebmBottles} bottles</td>
                         <td>${pdbmMl} ml</td>
+                        <td>${perBabyBottles}</td>
                     `;
 
                     total_pdbm += pdbmMl;
                 });
 
-                // Bottle calculation (125ml limit, prefer larger bottles)
-                let num_125 = Math.floor(total_pdbm / 125);
+                // Overall bottle calculation (same as before)
+                let overall_125 = Math.floor(total_pdbm / 125);
                 let remaining = total_pdbm % 125;
-                let num_50 = Math.ceil(remaining / 50);
-                let waste = (num_125 * 125 + num_50 * 50) - total_pdbm;
+                let overall_50 = Math.ceil(remaining / 50);
+                let waste = (overall_125 * 125 + overall_50 * 50) - total_pdbm;
 
                 document.getElementById('overall-summary').innerHTML = `
                     <strong>Total PDBM Required:</strong> ${total_pdbm} ml<br>
-                    <strong>125ml Bottles Needed:</strong> ${num_125}<br>
-                    <strong>50ml Bottles Needed:</strong> ${num_50}<br>
+                    <strong>125ml Bottles Needed:</strong> ${overall_125}<br>
+                    <strong>50ml Bottles Needed:</strong> ${overall_50}<br>
                     <strong>Estimated Waste:</strong> ${waste} ml<br>
                     <small>Note: Bottles not mixed. Waste minimized.</small>
                 `;
