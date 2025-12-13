@@ -42,6 +42,8 @@
         #google_translate_element { text-align: center; margin: 15px 0; }
         .goog-te-gadget-simple { background-color: #f0f0f0 !important; border: 1px solid #ccc !important; padding: 8px !important; font-size: 14px !important; border-radius: 6px !important; }
         .timestamp{font-size:13px;color:#666;text-align:center;margin:10px 0}
+        .aliquot-results{margin-top:30px;padding:15px;background:#e8f5e9;border-radius:8px;display:none}
+        #aliquot-table th{background:#e3f2fd}
     </style>
 </head>
 <body>
@@ -134,6 +136,28 @@
             </thead>
             <tbody></tbody>
         </table>
+
+        <!-- PDBM Aliquot Tool -->
+        <div class="section" style="margin-top:30px">
+            <h3>PDBM Aliquot Calculator</h3>
+            <button onclick="calculatePDBM()">Calculate PDBM Needs</button>
+            <div id="aliquot-results" class="aliquot-results" style="display:none">
+                <h3>Per Baby Breakdown</h3>
+                <table id="aliquot-table">
+                    <thead>
+                        <tr>
+                            <th>Bed ID</th>
+                            <th>Target (ml)</th>
+                            <th>EBM (ml)</th>
+                            <th>PDBM Needed (ml)</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <h3>Overall Summary</h3>
+                <div id="overall-summary"></div>
+            </div>
+        </div>
 
         <button class="logout" onclick="logout()">Logout</button>
     </div>
@@ -321,12 +345,12 @@
                     const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
                     const pdbm = Math.max(0, target - total);
 
-                    let lastUpdated = "-";
+                    let lastUpdated = "";
                     if (d.lastUpdateTimestamp) {
                         const ts = d.lastUpdateTimestamp.toDate();
-                        const dateStr = ts.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+                        const dateStr = ts.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
                         const timeStr = ts.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-                        lastUpdated = `${dateStr} ${timeStr}`;
+                        lastUpdated = `${dateStr} at ${timeStr}`;
                     }
 
                     const row = document.createElement('tr');
@@ -336,7 +360,7 @@
                         <td>${vol} ml × ${bottles} bottles</td>
                         <td><strong>${total} ml</strong></td>
                         <td><strong>${pdbm} ml</strong></td>
-                        <td>${lastUpdated}</td>
+                        <td>${lastUpdated || "-"}</td>
                     `;
                     if (pdbm === 0) row.style.background = '#e8f5e9';
                     tbody.appendChild(row);
@@ -386,6 +410,48 @@
                 a.href = url;
                 a.download = `EBM_Ward_${today}.csv`;
                 a.click();
+            });
+        }
+
+        // PDBM Aliquot Calculator
+        function calculatePDBM() {
+            const resultsDiv = document.getElementById('aliquot-results');
+            const tableBody = document.getElementById('aliquot-table').querySelector('tbody');
+            tableBody.innerHTML = '';
+            let total_pdbm = 0;
+
+            db.collection("users").get().then(snap => {
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const target = (d.volumePerFeed || 0) * (d.numFeeds || 0);
+                    const ebm = d.lastUpdate === new Date().toISOString().slice(0,10) ? (d.todayMl || 0) : 0;
+                    const pdbm = Math.max(0, target - ebm);
+
+                    const row = tableBody.insertRow();
+                    row.innerHTML = `
+                        <td>${d.displayId || doc.id}</td>
+                        <td>${target} ml</td>
+                        <td>${ebm} ml</td>
+                        <td>${pdbm} ml</td>
+                    `;
+
+                    total_pdbm += pdbm;
+                });
+
+                let num_130 = Math.floor(total_pdbm / 130);
+                let remaining = total_pdbm % 130;
+                let num_50 = Math.ceil(remaining / 50);
+                let waste = (num_50 * 50) - remaining;
+
+                document.getElementById('overall-summary').innerHTML = `
+                    <strong>Total PDBM Required:</strong> ${total_pdbm} ml<br>
+                    <strong>130ml Bottles Needed:</strong> ${num_130}<br>
+                    <strong>50ml Bottles Needed:</strong> ${num_50}<br>
+                    <strong>Estimated Waste:</strong> ${waste} ml<br>
+                    <small>Note: Bottles not mixed. Waste minimized.</small>
+                `;
+
+                resultsDiv.style.display = 'block';
             });
         }
     </script>
