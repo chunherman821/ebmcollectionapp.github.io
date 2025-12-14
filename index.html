@@ -184,6 +184,7 @@
         let currentUser = null;
         const hcwPassword = "hcwpass";
 
+        // Real-time listener
         db.collection("users").onSnapshot(() => {
             if (currentUser === 'hcw') updateBedsTable();
         });
@@ -229,7 +230,7 @@
                 document.getElementById('login-section').style.display = 'none';
                 document.getElementById('hcw-section').style.display = 'block';
                 populateBedSelect();
-                updateBedsTable();
+                updateBedsTable();  // Fixed: Refresh table on login
                 return;
             }
 
@@ -360,7 +361,7 @@
                     row.innerHTML = `
                         <td><strong>${display}</strong></td>
                         <td>${d.volumePerFeed||0} ml × ${d.numFeeds||0} bottles<br><small>(${target} ml)</small></td>
-                        <td>${vol} ml × ${bottle} bottles</td>
+                        <td>${vol} ml × ${bottles} bottles</td>
                         <td><strong>${total} ml</strong></td>
                         <td><strong>${pdbm} ml</strong></td>
                         <td>${lastUpdated || "-"}</td>
@@ -369,7 +370,6 @@
                     tbody.appendChild(row);
                 });
 
-                // Cumulative row
                 const cumRow = document.createElement('tr');
                 cumRow.className = 'total-row';
                 cumRow.innerHTML = `
@@ -425,14 +425,13 @@
             });
         }
 
-        // PDBM Aliquot Calculator - Full shared packing
+        // PDBM Aliquot Calculator - Shared packing, minimum waste
         function calculatePDBM() {
             const resultsDiv = document.getElementById('aliquot-results');
             const tableBody = document.getElementById('aliquot-table').querySelector('tbody');
             tableBody.innerHTML = '';
-            let all_feeds = [];
+            let all_pdbm_feeds = [];
             let total_pdbm = 0;
-            let cumulative_pdbm = 0;
             const today = new Date().toISOString().slice(0,10);
 
             db.collection("users").get().then(snap => {
@@ -447,27 +446,38 @@
                     const ebmMl = d.lastUpdate === today ? (d.todayMl || 0) : 0;
                     const pdbmMl = Math.max(0, targetMl - ebmMl);
 
+                    // Per-feed PDBM for shared packing (treat EBM as covering full feeds, excess wasted)
+                    const coveredFeeds = Math.min(ebmBottles, targetBottles);
+                    const pdbmFeeds = targetBottles - coveredFeeds;
+                    for (let i = 0; i < pdbmFeeds; i++) {
+                        all_pdbm_feeds.push(targetVol);
+                    }
+
+                    // Per-baby bottle calculation (non-shared for reference)
+                    let perBabyBottles = "None";
+                    if (pdbmMl > 0) {
+                        let num_125 = Math.floor(pdbmMl / 125);
+                        let remaining = pdbmMl % 125;
+                        let num_50 = Math.ceil(remaining / 50);
+                        perBabyBottles = `${num_125} × 125ml + ${num_50} × 50ml`;
+                    }
+
                     const row = tableBody.insertRow();
                     row.innerHTML = `
                         <td>${display}</td>
                         <td>${targetVol} ml × ${targetBottles} bottles</td>
                         <td>${ebmVol} ml × ${ebmBottles} bottles</td>
                         <td>${pdbmMl} ml</td>
-                        <td>${pdbmMl > 0 ? calculatePerBabyBottles(pdbmMl) : 'None'}</td>
+                        <td>${perBabyBottles}</td>
                     `;
 
-                    // Add to all_feeds for shared packing
-                    for (let i = 0; i < targetBottles; i++) {
-                        all_feeds.push(targetVol);
-                    }
-
-                    cumulative_pdbm += pdbmMl;
+                    total_pdbm += pdbmMl;
                 });
 
-                // Shared packing for overall
-                all_feeds.sort((a, b) => b - a);
+                // Shared packing across all babies
+                all_pdbm_feeds.sort((a, b) => b - a);
                 let bins = [];
-                for (let feed of all_feeds) {
+                for (let feed of all_pdbm_feeds) {
                     let placed = false;
                     for (let bin of bins) {
                         if (bin.remaining >= feed) {
@@ -477,7 +487,7 @@
                         }
                     }
                     if (!placed) {
-                        const cap = feed > 50 ? 125 : 50;
+                        const cap = feed > 62.5 ? 125 : 50;
                         bins.push({ cap, remaining: cap - feed });
                     }
                 }
@@ -487,7 +497,7 @@
                 const waste = bins.reduce((sum, b) => sum + b.remaining, 0);
 
                 document.getElementById('overall-summary').innerHTML = `
-                    <strong>Total PDBM Required:</strong> ${cumulative_pdbm} ml<br>
+                    <strong>Total PDBM Required:</strong> ${total_pdbm} ml<br>
                     <strong>125ml Bottles Needed:</strong> ${num_125}<br>
                     <strong>50ml Bottles Needed:</strong> ${num_50}<br>
                     <strong>Estimated Waste:</strong> ${waste} ml<br>
@@ -496,14 +506,6 @@
 
                 resultsDiv.style.display = 'block';
             });
-        }
-
-        // Helper for per-baby bottles (non-shared)
-        function calculatePerBabyBottles(pdbmMl) {
-            let num_125 = Math.floor(pdbmMl / 125);
-            let remaining = pdbmMl % 125;
-            let num_50 = Math.ceil(remaining / 50);
-            return `${num_125} × 125ml + ${num_50} × 50ml`;
         }
     </script>
 </body>
