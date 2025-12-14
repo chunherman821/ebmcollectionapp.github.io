@@ -360,7 +360,7 @@
                     row.innerHTML = `
                         <td><strong>${display}</strong></td>
                         <td>${d.volumePerFeed||0} ml × ${d.numFeeds||0} bottles<br><small>(${target} ml)</small></td>
-                        <td>${vol} ml × ${bottles} bottles</td>
+                        <td>${vol} ml × ${bottle} bottles</td>
                         <td><strong>${total} ml</strong></td>
                         <td><strong>${pdbm} ml</strong></td>
                         <td>${lastUpdated || "-"}</td>
@@ -425,11 +425,12 @@
             });
         }
 
-        // PDBM Aliquot Calculator - Consistent packing
+        // PDBM Aliquot Calculator - Full shared packing
         function calculatePDBM() {
             const resultsDiv = document.getElementById('aliquot-results');
             const tableBody = document.getElementById('aliquot-table').querySelector('tbody');
             tableBody.innerHTML = '';
+            let all_feeds = [];
             let total_pdbm = 0;
             let cumulative_pdbm = 0;
             const today = new Date().toISOString().slice(0,10);
@@ -446,50 +447,63 @@
                     const ebmMl = d.lastUpdate === today ? (d.todayMl || 0) : 0;
                     const pdbmMl = Math.max(0, targetMl - ebmMl);
 
-                    let perBabyBottles = "None";
-                    if (pdbmMl > 0) {
-                        let num_125 = Math.floor(pdbmMl / 125);
-                        let remaining = pdbmMl % 125;
-                        let num_50 = Math.ceil(remaining / 50);
-                        perBabyBottles = `${num_125} × 125ml + ${num_50} × 50ml`;
-                    }
-
                     const row = tableBody.insertRow();
                     row.innerHTML = `
                         <td>${display}</td>
                         <td>${targetVol} ml × ${targetBottles} bottles</td>
                         <td>${ebmVol} ml × ${ebmBottles} bottles</td>
                         <td>${pdbmMl} ml</td>
-                        <td>${perBabyBottles}</td>
+                        <td>${pdbmMl > 0 ? calculatePerBabyBottles(pdbmMl) : 'None'}</td>
                     `;
 
-                    total_pdbm += pdbmMl;
+                    // Add to all_feeds for shared packing
+                    for (let i = 0; i < targetBottles; i++) {
+                        all_feeds.push(targetVol);
+                    }
+
+                    cumulative_pdbm += pdbmMl;
                 });
 
-                // Overall packing (consistent with per-baby)
-                let num_125 = Math.floor(total_pdbm / 125);
-                let remaining = total_pdbm % 125;
-                let num_50 = Math.ceil(remaining / 50);
-                let waste = (num_125 * 125 + num_50 * 50) - total_pdbm;
+                // Shared packing for overall
+                all_feeds.sort((a, b) => b - a);
+                let bins = [];
+                for (let feed of all_feeds) {
+                    let placed = false;
+                    for (let bin of bins) {
+                        if (bin.remaining >= feed) {
+                            bin.remaining -= feed;
+                            placed = true;
+                            break;
+                        }
+                    }
+                    if (!placed) {
+                        const cap = feed > 50 ? 125 : 50;
+                        bins.push({ cap, remaining: cap - feed });
+                    }
+                }
+
+                const num_125 = bins.filter(b => b.cap === 125).length;
+                const num_50 = bins.filter(b => b.cap === 50).length;
+                const waste = bins.reduce((sum, b) => sum + b.remaining, 0);
 
                 document.getElementById('overall-summary').innerHTML = `
-                    <strong>Total PDBM Required:</strong> ${total_pdbm} ml<br>
+                    <strong>Total PDBM Required:</strong> ${cumulative_pdbm} ml<br>
                     <strong>125ml Bottles Needed:</strong> ${num_125}<br>
                     <strong>50ml Bottles Needed:</strong> ${num_50}<br>
                     <strong>Estimated Waste:</strong> ${waste} ml<br>
-                    <small>Note: Bottles not mixed. Waste minimized using least bottles.</small>
-                `;
-
-                // Cumulative row in aliquot table
-                const cumRow = tableBody.insertRow();
-                cumRow.className = 'total-row';
-                cumRow.innerHTML = `
-                    <td colspan="3"><strong>Total PDBM Required</strong></td>
-                    <td colspan="2"><strong>${total_pdbm} ml</strong></td>
+                    <small>Note: Bottles shared across babies/feeds. Waste minimized using least bottles.</small>
                 `;
 
                 resultsDiv.style.display = 'block';
             });
+        }
+
+        // Helper for per-baby bottles (non-shared)
+        function calculatePerBabyBottles(pdbmMl) {
+            let num_125 = Math.floor(pdbmMl / 125);
+            let remaining = pdbmMl % 125;
+            let num_50 = Math.ceil(remaining / 50);
+            return `${num_125} × 125ml + ${num_50} × 50ml`;
         }
     </script>
 </body>
