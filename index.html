@@ -44,6 +44,7 @@
         .timestamp{font-size:13px;color:#666;text-align:center;margin:10px 0}
         .aliquot-results{margin-top:30px;padding:15px;background:#e8f5e9;border-radius:8px;display:none}
         #aliquot-table th{background:#e3f2fd}
+        .total-row{background:#fff3e0 !important;font-weight:bold}
     </style>
 </head>
 <body>
@@ -334,6 +335,7 @@
             const tbody = document.querySelector('#beds-table tbody');
             tbody.innerHTML = '';
             const today = new Date().toISOString().slice(0,10);
+            let cumulative_pdbm = 0;
 
             db.collection("users").get().then(snap => {
                 snap.forEach(doc => {
@@ -344,6 +346,7 @@
                     const bottles = d.lastUpdate === today ? (d.todayNumBottles || 0) : 0;
                     const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
                     const pdbm = Math.max(0, target - total);
+                    cumulative_pdbm += pdbm;
 
                     let lastUpdated = "";
                     if (d.lastUpdateTimestamp) {
@@ -365,6 +368,15 @@
                     if (pdbm === 0) row.style.background = '#e8f5e9';
                     tbody.appendChild(row);
                 });
+
+                // Cumulative PDBM row
+                const cumRow = document.createElement('tr');
+                cumRow.className = 'total-row';
+                cumRow.innerHTML = `
+                    <td colspan="4"><strong>Total PDBM Required</strong></td>
+                    <td colspan="2"><strong>${cumulative_pdbm} ml</strong></td>
+                `;
+                tbody.appendChild(cumRow);
             });
         }
 
@@ -413,12 +425,11 @@
             });
         }
 
-        // PDBM Aliquot Calculator - Updated with shared packing and zero waste
+        // PDBM Aliquot Calculator - Unified calculation
         function calculatePDBM() {
             const resultsDiv = document.getElementById('aliquot-results');
             const tableBody = document.getElementById('aliquot-table').querySelector('tbody');
             tableBody.innerHTML = '';
-            let all_feeds = [];  // List of all PDBM per-feed aliquots across babies
             let total_pdbm = 0;
             const today = new Date().toISOString().slice(0,10);
 
@@ -432,16 +443,7 @@
                     const ebmVol = d.lastUpdate === today ? (d.todayVolumePerBottle || 0) : 0;
                     const ebmBottles = d.lastUpdate === today ? (d.todayNumBottles || 0) : 0;
                     const ebmMl = d.lastUpdate === today ? (d.todayMl || 0) : 0;
-
-                    // EBM covers ebm_bottles full feeds (no split, waste excess in EBM bottle)
-                    const coveredFeeds = Math.min(ebmBottles, targetBottles);
-                    const pdbmFeeds = targetBottles - coveredFeeds;
-                    const pdbmMl = pdbmFeeds * targetVol;
-
-                    // Add PDBM per-feed aliquots for shared packing
-                    for (let i = 0; i < pdbmFeeds; i++) {
-                        all_feeds.push(targetVol);
-                    }
+                    const pdbmMl = Math.max(0, targetMl - ebmMl);
 
                     let perBabyBottles = "None";
                     if (pdbmMl > 0) {
@@ -463,34 +465,26 @@
                     total_pdbm += pdbmMl;
                 });
 
-                // Shared packing: First-fit decreasing for minimum bottles
-                all_feeds.sort((a, b) => b - a);  // Descending for better packing
-                let bins = [];
-                for (let feed of all_feeds) {
-                    let placed = false;
-                    for (let bin of bins) {
-                        if (bin.remaining >= feed) {
-                            bin.remaining -= feed;
-                            placed = true;
-                            break;
-                        }
-                    }
-                    if (!placed) {
-                        const cap = feed > 50 ? 125 : 50;
-                        bins.push({ cap, remaining: cap - feed });
-                    }
-                }
-
-                const num_125 = bins.filter(b => b.cap === 125).length;
-                const num_50 = bins.filter(b => b.cap === 50).length;
-                const waste = bins.reduce((sum, b) => sum + b.remaining, 0);
+                // Unified overall calculation
+                let num_125 = Math.floor(total_pdbm / 125);
+                let remaining = total_pdbm % 125;
+                let num_50 = Math.ceil(remaining / 50);
+                let waste = (num_125 * 125 + num_50 * 50) - total_pdbm;
 
                 document.getElementById('overall-summary').innerHTML = `
                     <strong>Total PDBM Required:</strong> ${total_pdbm} ml<br>
                     <strong>125ml Bottles Needed:</strong> ${num_125}<br>
                     <strong>50ml Bottles Needed:</strong> ${num_50}<br>
                     <strong>Estimated Waste:</strong> ${waste} ml<br>
-                    <small>Note: Bottles shared across babies/feeds. Waste minimized using least bottles.</small>
+                    <small>Note: Bottles shared across babies. Waste minimized.</small>
+                `;
+
+                // Add cumulative row to aliquot table
+                const cumRow = tableBody.insertRow();
+                cumRow.className = 'total-row';
+                cumRow.innerHTML = `
+                    <td colspan="3"><strong>Total PDBM Required</strong></td>
+                    <td colspan="2"><strong>${total_pdbm} ml</strong></td>
                 `;
 
                 resultsDiv.style.display = 'block';
