@@ -29,7 +29,7 @@
         button.delete{background:#d32f2f}
         button.export{background:#1976D2}
         button.logout{background:#607D8B}
-        button.consult{background:#FF9800;margin-top:10px}
+        button.edit{background:#FFC107;margin-left:10px;font-size:14px;padding:6px 10px}
         .section{background:white;padding:20px;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,0.1);margin-top:20px}
         #stats{margin-top:20px;padding:15px;background:#e8f5e9;border-radius:8px;font-size:18px}
         #today-total{font-size:28px;font-weight:bold;text-align:center;margin:20px 0;color:#2e7d32}
@@ -43,7 +43,7 @@
         #google_translate_element { text-align: center; margin: 15px 0; }
         .goog-te-gadget-simple { background-color: #f0f0f0 !important; border: 1px solid #ccc !important; padding: 8px !important; font-size: 14px !important; border-radius: 6px !important; }
         .timestamp{font-size:13px;color:#666;text-align:center;margin:10px 0}
-        .consult-form{margin-top:10px;padding:10px;background:#fff3e0;border-radius:6px;display:none}
+        .edit-form{margin-top:10px;padding:10px;background:#fff3e0;border-radius:6px;display:none}
         .total-row{background:#fff3e0 !important;font-weight:bold}
     </style>
 </head>
@@ -77,6 +77,7 @@
         <div id="baby-info" class="section" style="margin-bottom:20px">
             <h3>Baby Information</h3>
             <div id="dol-display"></div>
+            <div id="weight-display"></div>
             <div id="target-suggestion"></div>
         </div>
 
@@ -93,19 +94,12 @@
         </div>
 
         <button class="refresh" onclick="loadTodayData()">Refresh</button>
-        <button class="consult" onclick="requestConsult()" id="consult-btn" style="display:none">Request Lactation Support</button>
         <button class="logout" onclick="logout()">Logout</button>
 
         <div id="stats"></div>
         <div id="last-updated" class="timestamp"></div>
         <div id="today-total">Today's Total: 0 ml</div>
         <div id="celebration" class="celebration" style="display:none"></div>
-
-        <div id="consult-form" class="consult-form">
-            <label>Please tell us how we can assist you:</label>
-            <textarea id="consult-message" rows="4" placeholder="Your message..."></textarea>
-            <button onclick="submitConsult()">Submit Request</button>
-        </div>
     </div>
 
     <!-- HCW View -->
@@ -121,29 +115,28 @@
             <input type="password" id="new-bed-password">
             <label>Date of Birth:</label>
             <input type="date" id="new-dob">
-            <label>Current Weight (kg, e.g., 0.875):</label>
+            <label>Current Weight (kg):</label>
             <input type="number" id="new-weight" min="0" step="0.001" placeholder="0.875">
-            <label>Keep Fasting? (NPO):</label>
-            <select id="new-fasting">
-                <option value="false">No</option>
-                <option value="true">Yes (Keep Fasting)</option>
-            </select>
             <button onclick="registerNewBed()" style="background:#FFC107">Register Bed</button>
         </div>
 
         <label>Select Bed:</label>
         <select id="hcw-bed-select"></select>
 
-        <label>Volume per Bottle (ml):</label>
-        <input type="number" id="hcw-volume-per-feed" min="0" step="1">
-        <label>Bottles per Day:</label>
-        <input type="number" id="hcw-num-feeds" min="1" step="1">
-
-        <label>Keep Fasting? (NPO):</label>
-        <select id="hcw-fasting">
-            <option value="false">No</option>
-            <option value="true">Yes (Keep Fasting)</option>
-        </select>
+        <!-- Edit Form -->
+        <div id="edit-form" class="edit-form">
+            <h3>Edit Bed <span id="edit-bed-id"></span></h3>
+            <label>Date of Birth:</label>
+            <input type="date" id="edit-dob">
+            <label>Current Weight (kg):</label>
+            <input type="number" id="edit-weight" min="0" step="0.001">
+            <label>Volume per Bottle (ml):</label>
+            <input type="number" id="edit-volume-per-feed" min="0" step="1">
+            <label>Bottles per Day:</label>
+            <input type="number" id="edit-num-feeds" min="1" step="1">
+            <button onclick="saveEdit()">Save Changes</button>
+            <button onclick="cancelEdit()" style="background:#757575">Cancel</button>
+        </div>
 
         <button onclick="updateRequirement()">Update Target</button>
         <button class="delete" onclick="deleteBed()">Delete Selected Bed</button>
@@ -161,16 +154,11 @@
                     <th>Mother's Total</th>
                     <th>PDBM Required</th>
                     <th>Last Updated</th>
+                    <th>Edit</th>
                 </tr>
             </thead>
             <tbody></tbody>
         </table>
-
-        <!-- Consultation Requests -->
-        <div class="section" style="margin-top:30px">
-            <h3>Consultation Requests</h3>
-            <div id="consult-requests"></div>
-        </div>
 
         <button class="logout" onclick="logout()">Logout</button>
     </div>
@@ -196,10 +184,7 @@
         const hcwPassword = "hcwpass";
 
         db.collection("users").onSnapshot(() => {
-            if (currentUser === 'hcw') {
-                updateBedsTable();
-                loadConsultRequests();
-            }
+            if (currentUser === 'hcw') updateBedsTable();
         });
 
         function normalizeId(id) {
@@ -212,7 +197,6 @@
             const pass = document.getElementById('new-bed-password').value;
             const dob = document.getElementById('new-dob').value;
             const weight = parseFloat(document.getElementById('new-weight').value);
-            const fasting = document.getElementById('new-fasting').value === 'true';
 
             if (!rawId || !pass) return alert("Fill Bed ID and password");
 
@@ -229,15 +213,13 @@
                     lastUpdateTimestamp: null,
                     displayId: rawId,
                     dob: dob ? firebase.firestore.Timestamp.fromDate(new Date(dob)) : null,
-                    weight_kg: weight || null,
-                    fasting: fasting
+                    weight_kg: weight || null
                 }).then(() => {
                     alert("New bed registered successfully!");
                     document.getElementById('new-bed-id').value = '';
                     document.getElementById('new-bed-password').value = '';
                     document.getElementById('new-dob').value = '';
                     document.getElementById('new-weight').value = '';
-                    document.getElementById('new-fasting').value = 'false';
                     populateBedSelect();
                 });
             });
@@ -254,7 +236,6 @@
                 document.getElementById('hcw-section').style.display = 'block';
                 populateBedSelect();
                 updateBedsTable();
-                loadConsultRequests();
                 return;
             }
 
@@ -298,7 +279,6 @@
                     let message = "Great effort! 💕";
                     if (shortfall > 0) {
                         message += ` Your baby needs ~${shortfall} ml more today.`;
-                        document.getElementById('consult-btn').style.display = 'block';
                     } else if (shortfall < 0) {
                         message += ` You have ~${Math.abs(shortfall)} ml surplus today — wonderful!`;
                     } else {
@@ -340,7 +320,7 @@
                     document.getElementById('last-updated').textContent = "";
                 }
 
-                // Baby Info (DOL, weight, target suggestion)
+                // Baby Info (DOL, weight)
                 let babyInfo = "";
                 if (d.dob) {
                     const dob = d.dob.toDate();
@@ -353,31 +333,6 @@
                 }
                 babyInfo += `<strong>Target Suggestion:</strong> Coming soon (based on DOL/weight)<br>`;
                 document.getElementById('baby-info').innerHTML = babyInfo;
-
-                // Show consultation button if shortfall
-                const shortfall = target - todayMl;
-                document.getElementById('consult-btn').style.display = shortfall > 0 ? 'block' : 'none';
-            });
-        }
-
-        function requestConsult() {
-            document.getElementById('consult-form').style.display = 'block';
-        }
-
-        function submitConsult() {
-            const message = document.getElementById('consult-message').value.trim();
-            if (!message) return alert("Please enter a message");
-
-            const today = new Date().toISOString();
-            db.collection("consult_requests").add({
-                bedId: currentUser,
-                message: message,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                status: "pending"
-            }).then(() => {
-                alert("Thank you for your message. Our lactation consultant will contact you shortly. 💕");
-                document.getElementById('consult-message').value = '';
-                document.getElementById('consult-form').style.display = 'none';
             });
         }
 
@@ -442,19 +397,58 @@
                         <td><strong>${total} ml</strong></td>
                         <td><strong>${pdbm} ml</strong></td>
                         <td>${lastUpdated || "-"}</td>
+                        <td><button class="edit" onclick="editBed('${doc.id}')">✏️</button></td>
                     `;
                     if (pdbm === 0) row.style.background = '#e8f5e9';
                     tbody.appendChild(row);
                 });
 
+                // Cumulative row
                 const cumRow = document.createElement('tr');
                 cumRow.className = 'total-row';
                 cumRow.innerHTML = `
                     <td colspan="4"><strong>Total PDBM Required</strong></td>
-                    <td colspan="2"><strong>${cumulative_pdbm} ml</strong></td>
+                    <td colspan="3"><strong>${cumulative_pdbm} ml</strong></td>
                 `;
                 tbody.appendChild(cumRow);
             });
+        }
+
+        function editBed(bedId) {
+            db.collection("users").doc(bedId).get().then(doc => {
+                const d = doc.data();
+                document.getElementById('edit-bed-id').textContent = d.displayId || bedId;
+                document.getElementById('edit-dob').value = d.dob ? d.dob.toDate().toISOString().split('T')[0] : '';
+                document.getElementById('edit-weight').value = d.weight_kg || '';
+                document.getElementById('edit-volume-per-feed').value = d.volumePerFeed || '';
+                document.getElementById('edit-num-feeds').value = d.numFeeds || '';
+                document.getElementById('edit-form').style.display = 'block';
+                document.getElementById('edit-form').dataset.bedId = bedId;
+            });
+        }
+
+        function saveEdit() {
+            const bedId = document.getElementById('edit-form').dataset.bedId;
+            const dob = document.getElementById('edit-dob').value;
+            const weight = parseFloat(document.getElementById('edit-weight').value);
+            const vol = parseInt(document.getElementById('edit-volume-per-feed').value);
+            const feeds = parseInt(document.getElementById('edit-num-feeds').value);
+
+            db.collection("users").doc(bedId).update({
+                dob: dob ? firebase.firestore.Timestamp.fromDate(new Date(dob)) : null,
+                weight_kg: weight || null,
+                volumePerFeed: vol || 0,
+                numFeeds: feeds || 0,
+                lastUpdateTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                alert("Bed updated successfully!");
+                cancelEdit();
+                updateBedsTable();
+            });
+        }
+
+        function cancelEdit() {
+            document.getElementById('edit-form').style.display = 'none';
         }
 
         function populateBedSelect() {
@@ -499,35 +493,6 @@
                 a.href = url;
                 a.download = `EBM_Ward_${today}.csv`;
                 a.click();
-            });
-        }
-
-        function loadConsultRequests() {
-            const div = document.getElementById('consult-requests');
-            div.innerHTML = '';
-            db.collection("consult_requests").where("status", "==", "pending").get().then(snap => {
-                if (snap.empty) {
-                    div.innerHTML = "<p>No pending requests.</p>";
-                    return;
-                }
-                snap.forEach(doc => {
-                    const req = doc.data();
-                    div.innerHTML += `
-                        <div style="margin:10px 0;padding:10px;background:#fff3e0;border-radius:6px">
-                            <strong>Bed:</strong> ${req.bedId}<br>
-                            <strong>Message:</strong> ${req.message}<br>
-                            <strong>Time:</strong> ${req.timestamp.toDate().toLocaleString()}<br>
-                            <button onclick="markConsultDone('${doc.id}')">Mark as Done</button>
-                        </div>
-                    `;
-                });
-            });
-        }
-
-        function markConsultDone(requestId) {
-            db.collection("consult_requests").doc(requestId).update({ status: "done" }).then(() => {
-                alert("Request marked as done");
-                loadConsultRequests();
             });
         }
     </script>
