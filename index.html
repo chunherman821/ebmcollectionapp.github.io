@@ -48,7 +48,7 @@
         .total-row{background:#fff3e0 !important;font-weight:bold}
         .consult-form{margin-top:10px;padding:10px;background:#fff3e0;border-radius:6px;display:none}
         .fasting-message{font-size:18px;color:#d81b60;text-align:center;margin:20px 0;font-weight:bold}
-        .conversation-log{margin-top:10px;padding:10px;background:#f9f9f9;border-radius:6px;max-height:300px;overflow-y:auto}
+        .conversation-log{margin-top:10px;padding:10px;background:#f9f9f9;border-radius:6px;max-height:300px;overflow-y:auto;display:none}
         .message-item{margin:8px 0;padding:8px;border-radius:6px}
         .message-mother{background:#e3f2fd}
         .message-nurse{background:#c8e6c9}
@@ -115,7 +115,7 @@
         <div id="consult-section" class="section" style="margin-top:20px">
             <h3>Lactation Support</h3>
             <button class="consult" onclick="requestConsult()">Send Message to Lactation Team</button>
-            <div id="consult-form" class="consult-form">
+            <div id="consult-form" class="consult-form" style="display:none">
                 <label>Please tell us how we can assist you:</label>
                 <textarea id="consult-message" rows="4" placeholder="Your message..."></textarea>
                 <button onclick="submitConsult()">Send</button>
@@ -221,7 +221,7 @@
 
         db.collection("consult_requests").onSnapshot(() => {
             if (currentUser === 'hcw') loadConsultRequests();
-            if (currentUser !== 'hcw') loadConversationLog();  // Mother sees her own log
+            if (currentUser !== 'hcw') loadConversationLog();
         });
 
         function normalizeId(id) {
@@ -417,7 +417,7 @@
                 }
                 snap.forEach(doc => {
                     const req = doc.data();
-                    if (req.conversation) {
+                    if (req.conversation && req.conversation.length > 0) {
                         req.conversation.forEach(msg => {
                             const item = document.createElement('div');
                             item.className = 'message-item ' + (msg.sender === 'mother' ? 'message-mother' : 'message-nurse');
@@ -426,9 +426,13 @@
                             item.innerHTML = `<strong>${senderName} (${msgTime}):</strong> ${msg.message}`;
                             logDiv.appendChild(item);
                         });
+                        logContainer.style.display = 'block';
+                    } else {
+                        logContainer.style.display = 'none';
                     }
-                    logContainer.style.display = 'block';
                 });
+            }).catch(err => {
+                console.error("Error loading log:", err);
             });
         }
 
@@ -689,7 +693,7 @@
                 }
                 snap.forEach(doc => {
                     const req = doc.data();
-                    if (req.conversation) {
+                    if (req.conversation && req.conversation.length > 0) {
                         req.conversation.forEach(msg => {
                             const item = document.createElement('div');
                             item.className = 'message-item ' + (msg.sender === 'mother' ? 'message-mother' : 'message-nurse');
@@ -698,9 +702,13 @@
                             item.innerHTML = `<strong>${senderName} (${msgTime}):</strong> ${msg.message}`;
                             logDiv.appendChild(item);
                         });
+                        logContainer.style.display = 'block';
+                    } else {
+                        logContainer.style.display = 'none';
                     }
-                    logContainer.style.display = 'block';
                 });
+            }).catch(err => {
+                console.error("Error loading log:", err);
             });
         }
     </script>
