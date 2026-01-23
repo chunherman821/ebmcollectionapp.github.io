@@ -12,39 +12,37 @@
         function googleTranslateElementInit() {
             new google.translate.TranslateElement({
                 pageLanguage: 'en',
-                includedLanguages: 'en,zh-CN,zh-TW,ms,ta,ja,de,id,vi',  // Added Japanese (ja), German (de), Indonesian (id), Vietnamese (vi)
+                includedLanguages: 'en,zh-CN,zh-TW,ms,ta,ja,de,id,vi',
                 layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
                 autoDisplay: false
             }, 'google_translate_element');
         }
     </script>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 500px; margin: 20px auto; padding: 20px; background: #f5f7fa; color: #333; }
-        h1, h2 { text-align: center; color: #2c3e50; }
-        label { display: block; margin-top: 15px; font-weight: bold; }
-        input, select, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
-        button { background: #4CAF50; color: white; border: none; cursor: pointer; margin-top: 20px; }
-        button:hover { background: #45a049; }
-        button.refresh { background: #9C27B0; }
-        button.delete { background: #d32f2f; }
-        button.export { background: #1976D2; }
-        button.logout { background: #607D8B; }
-        .section { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-top: 20px; }
-        #stats { margin-top: 20px; padding: 15px; background: #e8f5e9; border-radius: 8px; font-size: 18px; }
-        #today-total { font-size: 28px; font-weight: bold; text-align: center; margin: 20px 0; color: #2e7d32; }
-        .positive { color: #2e7d32; }
-        .instructions { font-size: 14px; color: #555; margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; }
-        table { width: 100%; margin-top: 20px; border-collapse: collapse; }
-        th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
-        th { background: #e3f2fd; color: #1565c0; }
-        .live { font-size: 12px; color: #4CAF50; text-align: center; margin: 10px 0; }
-        .celebration { font-size: 24px; text-align: center; margin: 20px 0; color: #d81b60; }
+        body{font-family:Arial,sans-serif;max-width:500px;margin:20px auto;padding:20px;background:#f5f7fa;color:#333}
+        h1,h2{text-align:center;color:#2c3e50}
+        label{display:block;margin-top:15px;font-weight:bold}
+        input,select,button{width:100%;padding:12px;margin-top:8px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;font-size:16px}
+        button{background:#4CAF50;color:white;border:none;cursor:pointer;margin-top:20px}
+        button:hover{background:#45a049}
+        button.refresh{background:#9C27B0}
+        button.delete{background:#d32f2f}
+        button.export{background:#1976D2}
+        button.logout{background:#607D8B}
+        .section{background:white;padding:20px;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,0.1);margin-top:20px}
+        #stats{margin-top:20px;padding:15px;background:#e8f5e9;border-radius:8px;font-size:18px}
+        #today-total{font-size:28px;font-weight:bold;text-align:center;margin:20px 0;color:#2e7d32}
+        .positive{color:#2e7d32}
+        .instructions{font-size:14px;color:#555;margin-top:15px;background:#fff;padding:15px;border-radius:8px}
+        table{width:100%;margin-top:20px;border-collapse:collapse}
+        th,td{padding:10px;border:1px solid #ddd;text-align:center}
+        th{background:#e3f2fd;color:#1565c0}
+        .live{font-size:12px;color:#4CAF50;text-align:center;margin:10px 0}
+        .celebration{font-size:24px;text-align:center;margin:20px 0;color:#d81b60}
         #google_translate_element { text-align: center; margin: 15px 0; }
         .goog-te-gadget-simple { background-color: #f0f0f0 !important; border: 1px solid #ccc !important; padding: 8px !important; font-size: 14px !important; border-radius: 6px !important; }
-        .timestamp { font-size: 13px; color: #666; text-align: center; margin: 10px 0; }
-        .aliquot-results { margin-top: 30px; padding: 15px; background: #e8f5e9; border-radius: 8px; display: none; }
-        #aliquot-table th { background: #e3f2fd; }
-        .total-row { background: #fff3e0 !important; font-weight: bold; }
+        .timestamp{font-size:13px;color:#666;text-align:center;margin:10px 0}
+        .total-row{background:#fff3e0 !important;font-weight:bold}
     </style>
 </head>
 <body>
@@ -137,29 +135,6 @@
             </thead>
             <tbody></tbody>
         </table>
-
-        <!-- PDBM Aliquot Tool -->
-        <div class="section" style="margin-top:30px">
-            <h3>PDBM Aliquot Calculator</h3>
-            <button onclick="calculatePDBM()">Calculate PDBM Needs</button>
-            <div id="aliquot-results" class="aliquot-results" style="display:none">
-                <h3>Per Baby Breakdown</h3>
-                <table id="aliquot-table">
-                    <thead>
-                        <tr>
-                            <th>Bed ID</th>
-                            <th>Target (ml × bottles)</th>
-                            <th>EBM (ml × bottles)</th>
-                            <th>PDBM Needed (ml)</th>
-                            <th>PDBM Bottles (per baby)</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-                <h3>Overall Summary</h3>
-                <div id="overall-summary"></div>
-            </div>
-        </div>
 
         <button class="logout" onclick="logout()">Logout</button>
     </div>
@@ -422,82 +397,6 @@
                 a.href = url;
                 a.download = `EBM_Ward_${today}.csv`;
                 a.click();
-            });
-        }
-
-        // PDBM Aliquot Calculator - Shared packing with min waste
-        function calculatePDBM() {
-            const resultsDiv = document.getElementById('aliquot-results');
-            const tableBody = document.getElementById('aliquot-table').querySelector('tbody');
-            tableBody.innerHTML = '';
-            let all_pdbm_feeds = [];
-            let total_pdbm = 0;
-            let cumulative_pdbm = 0;
-            const today = new Date().toISOString().slice(0,10);
-
-            db.collection("users").get().then(snap => {
-                snap.forEach(doc => {
-                    const d = doc.data();
-                    const display = d.displayId || doc.id;
-                    const targetVol = d.volumePerFeed || 0;
-                    const targetBottles = d.numFeeds || 0;
-                    const targetMl = targetVol * targetBottles;
-                    const ebmVol = d.lastUpdate === today ? (d.todayVolumePerBottle || 0) : 0;
-                    const ebmBottles = d.lastUpdate === today ? (d.todayNumBottles || 0) : 0;
-                    const ebmMl = d.lastUpdate === today ? (d.todayMl || 0) : 0;
-                    const pdbmMl = Math.max(0, targetMl - ebmMl);
-
-                    // Per-feed PDBM (uniform)
-                    const pdbmPerFeed = Math.ceil(pdbmMl / targetBottles);  // Integral, ceiling to avoid decimals
-
-                    const row = tableBody.insertRow();
-                    row.innerHTML = `
-                        <td>${display}</td>
-                        <td>${targetVol} ml × ${targetBottles} bottles</td>
-                        <td>${ebmVol} ml × ${ebmBottles} bottles</td>
-                        <td>${pdbmMl} ml</td>
-                        <td>${pdbmPerFeed} ml × ${targetBottles} bottles</td>
-                    `;
-
-                    // Add to all_feeds for shared packing
-                    for (let i = 0; i < targetBottles; i++) {
-                        all_pdbm_feeds.push(pdbmPerFeed);
-                    }
-
-                    cumulative_pdbm += pdbmMl;
-                });
-
-                // Shared packing: First-fit decreasing
-                all_pdbm_feeds.sort((a, b) => b - a);
-                let bins = [];
-                for (let feed of all_pdbm_feeds) {
-                    let placed = false;
-                    for (let bin of bins) {
-                        if (bin.remaining >= feed) {
-                            bin.remaining -= feed;
-                            placed = true;
-                            break;
-                        }
-                    }
-                    if (!placed) {
-                        const cap = feed > 50 ? 125 : 50;
-                        bins.push({ cap, remaining: cap - feed });
-                    }
-                }
-
-                const num_125 = bins.filter(b => b.cap === 125).length;
-                const num_50 = bins.filter(b => b.cap === 50).length;
-                const waste = bins.reduce((sum, b) => sum + b.remaining, 0);
-
-                document.getElementById('overall-summary').innerHTML = `
-                    <strong>Total PDBM Required:</strong> ${cumulative_pdbm} ml<br>
-                    <strong>125ml Bottles Needed:</strong> ${num_125}<br>
-                    <strong>50ml Bottles Needed:</strong> ${num_50}<br>
-                    <strong>Estimated Waste:</strong> ${waste} ml<br>
-                    <small>Note: Bottles shared across babies/feeds. Waste minimized using least bottles.</small>
-                `;
-
-                resultsDiv.style.display = 'block';
             });
         }
     </script>
