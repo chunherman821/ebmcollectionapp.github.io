@@ -74,6 +74,11 @@
     <div id="parent-section" class="section" style="display:none">
         <h2>Welcome, <span id="current-bed"></span></h2>
 
+        <div id="baby-info" class="section" style="margin-bottom:20px">
+            <h3>Baby Information</h3>
+            <div id="dol-display"></div>
+        </div>
+
         <div class="section">
             <h2>Today's Expressed Breast Milk (EBM) Provided</h2>
             <label>Volume per Bottle (ml):</label>
@@ -115,6 +120,8 @@
             <input type="password" id="new-bed-password">
             <label>Date of Birth:</label>
             <input type="date" id="new-dob">
+            <label>Current Weight (kg):</label>
+            <input type="number" id="new-weight" min="0" step="0.001" placeholder="0.875">
             <button onclick="registerNewBed()" style="background:#FFC107">Register Bed</button>
         </div>
 
@@ -126,6 +133,8 @@
             <h3>Edit Bed <span id="edit-bed-id"></span></h3>
             <label>Date of Birth:</label>
             <input type="date" id="edit-dob">
+            <label>Current Weight (kg):</label>
+            <input type="number" id="edit-weight" min="0" step="0.001">
             <label>Volume per Bottle (ml):</label>
             <input type="number" id="edit-volume-per-feed" min="0" step="1">
             <label>Bottles per Day:</label>
@@ -149,6 +158,7 @@
                     <th>Mother's Total</th>
                     <th>PDBM Required</th>
                     <th>Last Updated</th>
+                    <th>Day of Life</th>
                     <th>Edit</th>
                 </tr>
             </thead>
@@ -201,6 +211,7 @@
             const id = normalizeId(rawId);
             const pass = document.getElementById('new-bed-password').value;
             const dob = document.getElementById('new-dob').value;
+            const weight = parseFloat(document.getElementById('new-weight').value);
 
             if (!rawId || !pass) return alert("Fill Bed ID and password");
 
@@ -216,12 +227,14 @@
                     lastUpdate: "",
                     lastUpdateTimestamp: null,
                     displayId: rawId,
-                    dob: dob ? firebase.firestore.Timestamp.fromDate(new Date(dob)) : null
+                    dob: dob ? firebase.firestore.Timestamp.fromDate(new Date(dob)) : null,
+                    weight_kg: weight || null
                 }).then(() => {
                     alert("New bed registered successfully!");
                     document.getElementById('new-bed-id').value = '';
                     document.getElementById('new-bed-password').value = '';
                     document.getElementById('new-dob').value = '';
+                    document.getElementById('new-weight').value = '';
                     populateBedSelect();
                 });
             });
@@ -322,6 +335,16 @@
                 } else {
                     document.getElementById('last-updated').textContent = "";
                 }
+
+                // Day of Life
+                let babyInfo = "";
+                if (d.dob) {
+                    const dob = d.dob.toDate();
+                    const today = new Date();
+                    const dol = Math.floor((today - dob) / (1000 * 60 * 60 * 24)) + 1;
+                    babyInfo += `<strong>Day of Life:</strong> ${dol}<br>`;
+                }
+                document.getElementById('dol-display').innerHTML = babyInfo;
             });
         }
 
@@ -432,6 +455,13 @@
                         lastUpdated = `${dateStr} at ${timeStr}`;
                     }
 
+                    let dol = "-";
+                    if (d.dob) {
+                        const dobDate = d.dob.toDate();
+                        const todayDate = new Date();
+                        dol = Math.floor((todayDate - dobDate) / (1000 * 60 * 60 * 24)) + 1;
+                    }
+
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td><strong>${display}</strong></td>
@@ -440,6 +470,7 @@
                         <td><strong>${total} ml</strong></td>
                         <td><strong>${pdbm} ml</strong></td>
                         <td>${lastUpdated || "-"}</td>
+                        <td>Day ${dol}</td>
                         <td><button class="edit" onclick="editBed('${doc.id}')">✏️</button></td>
                     `;
                     if (pdbm === 0) row.style.background = '#e8f5e9';
@@ -449,7 +480,7 @@
                 const cumRow = document.createElement('tr');
                 cumRow.className = 'total-row';
                 cumRow.innerHTML = `
-                    <td colspan="4"><strong>Total PDBM Required</strong></td>
+                    <td colspan="5"><strong>Total PDBM Required</strong></td>
                     <td colspan="3"><strong>${cumulative_pdbm} ml</strong></td>
                 `;
                 tbody.appendChild(cumRow);
