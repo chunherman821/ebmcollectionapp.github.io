@@ -45,10 +45,9 @@
         .timestamp{font-size:13px;color:#666;text-align:center;margin:10px 0}
         .edit-form{margin-top:10px;padding:10px;background:#fff3e0;border-radius:6px;display:none}
         .total-row{background:#fff3e0 !important;font-weight:bold}
-        .scroll-smooth{scroll-behavior:smooth}
     </style>
 </head>
-<body class="scroll-smooth">
+<body>
     <!-- Google Translate Widget -->
     <div id="google_translate_element"></div>
 
@@ -160,6 +159,7 @@
                     <th>PDBM Required</th>
                     <th>Last Updated</th>
                     <th>Day of Life</th>
+                    <th>Weight (kg)</th>
                     <th>Edit</th>
                 </tr>
             </thead>
@@ -402,6 +402,7 @@
                 const d = doc.data();
                 document.getElementById('edit-bed-id').textContent = d.displayId || bedId;
                 document.getElementById('edit-dob').value = d.dob ? d.dob.toDate().toISOString().split('T')[0] : '';
+                document.getElementById('edit-weight').value = d.weight_kg || '';
                 document.getElementById('edit-volume-per-feed').value = d.volumePerFeed || '';
                 document.getElementById('edit-num-feeds').value = d.numFeeds || '';
                 document.getElementById('edit-form').style.display = 'block';
@@ -415,11 +416,13 @@
         function saveEdit() {
             const bedId = document.getElementById('edit-form').dataset.bedId;
             const dob = document.getElementById('edit-dob').value;
+            const weight = parseFloat(document.getElementById('edit-weight').value);
             const vol = parseInt(document.getElementById('edit-volume-per-feed').value);
             const feeds = parseInt(document.getElementById('edit-num-feeds').value);
 
             db.collection("users").doc(bedId).update({
                 dob: dob ? firebase.firestore.Timestamp.fromDate(new Date(dob)) : null,
+                weight_kg: weight || null,
                 volumePerFeed: vol || 0,
                 numFeeds: feeds || 0,
                 lastUpdateTimestamp: firebase.firestore.FieldValue.serverTimestamp()
@@ -466,6 +469,8 @@
                         dol = Math.floor((todayDate - dobDate) / (1000 * 60 * 60 * 24)) + 1;
                     }
 
+                    let weightDisplay = d.weight_kg ? d.weight_kg + " kg" : "-";
+
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td><strong>${display}</strong></td>
@@ -475,6 +480,7 @@
                         <td><strong>${pdbm} ml</strong></td>
                         <td>${lastUpdated || "-"}</td>
                         <td>Day ${dol}</td>
+                        <td>${weightDisplay}</td>
                         <td><button class="edit" onclick="editBed('${doc.id}')">✏️</button></td>
                     `;
                     if (pdbm === 0) row.style.background = '#e8f5e9';
@@ -485,7 +491,7 @@
                 cumRow.className = 'total-row';
                 cumRow.innerHTML = `
                     <td colspan="5"><strong>Total PDBM Required</strong></td>
-                    <td colspan="3"><strong>${cumulative_pdbm} ml</strong></td>
+                    <td colspan="4"><strong>${cumulative_pdbm} ml</strong></td>
                 `;
                 tbody.appendChild(cumRow);
             });
