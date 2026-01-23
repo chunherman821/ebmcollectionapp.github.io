@@ -48,7 +48,7 @@
         .total-row{background:#fff3e0 !important;font-weight:bold}
         .consult-form{margin-top:10px;padding:10px;background:#fff3e0;border-radius:6px;display:none}
         .fasting-message{font-size:18px;color:#d81b60;text-align:center;margin:20px 0;font-weight:bold}
-        .conversation-log{margin-top:10px;padding:10px;background:#f9f9f9;border-radius:6px;max-height:200px;overflow-y:auto}
+        .conversation-log{margin-top:10px;padding:10px;background:#f9f9f9;border-radius:6px;max-height:300px;overflow-y:auto}
         .message-item{margin:8px 0;padding:8px;border-radius:6px}
         .message-mother{background:#e3f2fd}
         .message-nurse{background:#c8e6c9}
@@ -111,7 +111,7 @@
         <div id="today-total">Today's Total: 0 ml</div>
         <div id="celebration" class="celebration" style="display:none"></div>
 
-        <!-- Consultation Form & Log -->
+        <!-- Lactation Support Section -->
         <div id="consult-section" class="section" style="margin-top:20px">
             <h3>Lactation Support</h3>
             <button class="consult" onclick="requestConsult()">Send Message to Lactation Team</button>
@@ -120,7 +120,7 @@
                 <textarea id="consult-message" rows="4" placeholder="Your message..."></textarea>
                 <button onclick="submitConsult()">Send</button>
             </div>
-            <div id="conversation-log" class="conversation-log" style="display:none">
+            <div id="conversation-log" class="conversation-log">
                 <h4>Conversation Log</h4>
                 <div id="log-messages"></div>
             </div>
@@ -221,6 +221,7 @@
 
         db.collection("consult_requests").onSnapshot(() => {
             if (currentUser === 'hcw') loadConsultRequests();
+            if (currentUser !== 'hcw') loadConversationLog();  // Mother sees her own log
         });
 
         function normalizeId(id) {
@@ -396,7 +397,7 @@
                 message: message,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp(),
                 status: "pending",
-                conversation: [{ sender: "mother", message: message, time: new Date() }]
+                conversation: [{ sender: "mother", message: message, time: new Date().toISOString() }]
             }).then(() => {
                 alert("Thank you for your message. Our lactation consultant will contact you shortly. 💕");
                 document.getElementById('consult-message').value = '';
@@ -407,23 +408,26 @@
 
         function loadConversationLog() {
             db.collection("consult_requests").where("bedId", "==", currentUser).orderBy("timestamp", "desc").limit(1).get().then(snap => {
+                const logDiv = document.getElementById('log-messages');
+                const logContainer = document.getElementById('conversation-log');
+                logDiv.innerHTML = '';
                 if (snap.empty) {
-                    document.getElementById('conversation-log').style.display = 'none';
+                    logContainer.style.display = 'none';
                     return;
                 }
                 snap.forEach(doc => {
                     const req = doc.data();
-                    const logDiv = document.getElementById('log-messages');
-                    logDiv.innerHTML = '';
                     if (req.conversation) {
                         req.conversation.forEach(msg => {
                             const item = document.createElement('div');
                             item.className = 'message-item ' + (msg.sender === 'mother' ? 'message-mother' : 'message-nurse');
-                            item.innerHTML = `<strong>${msg.sender === 'mother' ? 'You' : 'Nurse'} (${new Date(msg.time).toLocaleString()}):</strong> ${msg.message}`;
+                            const senderName = msg.sender === 'mother' ? 'You' : 'Nurse';
+                            const msgTime = new Date(msg.time).toLocaleString();
+                            item.innerHTML = `<strong>${senderName} (${msgTime}):</strong> ${msg.message}`;
                             logDiv.appendChild(item);
                         });
                     }
-                    document.getElementById('conversation-log').style.display = 'block';
+                    logContainer.style.display = 'block';
                 });
             });
         }
@@ -651,7 +655,7 @@
                 newConversation.push({
                     sender: "nurse",
                     message: replyText,
-                    time: new Date()
+                    time: new Date().toISOString()
                 });
 
                 db.collection("consult_requests").doc(requestId).update({
@@ -671,6 +675,32 @@
             }).catch(err => {
                 alert("Error marking done");
                 console.error(err);
+            });
+        }
+
+        function loadConversationLog() {
+            db.collection("consult_requests").where("bedId", "==", currentUser).orderBy("timestamp", "desc").limit(1).get().then(snap => {
+                const logDiv = document.getElementById('log-messages');
+                const logContainer = document.getElementById('conversation-log');
+                logDiv.innerHTML = '';
+                if (snap.empty) {
+                    logContainer.style.display = 'none';
+                    return;
+                }
+                snap.forEach(doc => {
+                    const req = doc.data();
+                    if (req.conversation) {
+                        req.conversation.forEach(msg => {
+                            const item = document.createElement('div');
+                            item.className = 'message-item ' + (msg.sender === 'mother' ? 'message-mother' : 'message-nurse');
+                            const senderName = msg.sender === 'mother' ? 'You' : 'Nurse';
+                            const msgTime = new Date(msg.time).toLocaleString();
+                            item.innerHTML = `<strong>${senderName} (${msgTime}):</strong> ${msg.message}`;
+                            logDiv.appendChild(item);
+                        });
+                    }
+                    logContainer.style.display = 'block';
+                });
             });
         }
     </script>
