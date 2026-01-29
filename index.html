@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Expressed Breast Milk (EBM) Collection App</title>
-    <!-- Mother holding newborn baby icon (no bottle or pacifier) -->
     <link rel="icon" href="https://thumbs.dreamstime.com/b/mother-holding-newborn-baby-heartwarming-illustration-tenderly-her-peacefully-sleeping-wrapped-blue-blanket-406661905.jpg">
-    <!-- Google Translate Script -->
     <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
     <script type="text/javascript">
         function googleTranslateElementInit() {
@@ -39,7 +37,7 @@
         th,td{padding:10px;border:1px solid #ddd;text-align:center}
         th{background:#e3f2fd;color:#1565c0}
         .live{font-size:12px;color:#4CAF50;text-align:center;margin:10px 0}
-        .celebration{font-size:18px;text-align:center;margin:20px 0;color:#d81b60;font-weight:bold}
+        .celebration{font-size:18px;text-align:center;margin:20px 0;color:#d81b60;font-weight:bold;padding:15px;background:#fff3e0;border-radius:8px}
         #google_translate_element { text-align: center; margin: 15px 0; }
         .goog-te-gadget-simple { background-color: #f0f0f0 !important; border: 1px solid #ccc !important; padding: 8px !important; font-size: 14px !important; border-radius: 6px !important; }
         .timestamp{font-size:13px;color:#666;text-align:center;margin:10px 0}
@@ -51,9 +49,7 @@
     </style>
 </head>
 <body>
-    <!-- Google Translate Widget -->
     <div id="google_translate_element"></div>
-
     <h1>Expressed Breast Milk (EBM) Collection App</h1>
 
     <!-- Login -->
@@ -203,7 +199,7 @@
         let currentUser = null;
         const hcwPassword = "hcwpass";
 
-        // Minimal breast milk reference (ml/day by DOL)
+        // Minimal breast milk reference (ml/day by DOL range)
         const minimalMilkByDOL = {
             0: 0,
             1: 0,
@@ -337,7 +333,7 @@
                 lastUpdate: today,
                 lastUpdateTimestamp: firebase.firestore.FieldValue.serverTimestamp()
             }).then(() => {
-                loadTodayData(); // Refresh to show comparison/reminder
+                loadTodayData(); // Force refresh to show updated message/reminder
             });
         }
 
@@ -403,7 +399,7 @@
                 }
 
                 // Minimal supply check & tailored message
-                let minimalToday = 500; // default for DOL 15+
+                let minimalToday = 500;
                 if (currentDOL <= 3) minimalToday = 0;
                 else if (currentDOL <= 7) minimalToday = 50;
                 else if (currentDOL <= 10) minimalToday = 300;
@@ -412,7 +408,7 @@
                 let supplyMessage = "";
                 if (todayMl >= minimalToday) {
                     supplyMessage = "You have already done a good job! Keep it up!";
-                    if (todayMl > minimalToday * 1.5) { // example threshold for pump suggestion
+                    if (todayMl > minimalToday * 1.5) {
                         supplyMessage += "<br>If you are getting more milk and faster milk flow during hand expression, you may try to use breast pump for 15 minutes per side.";
                     }
                 } else {
