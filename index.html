@@ -203,25 +203,13 @@
         let currentUser = null;
         const hcwPassword = "hcwpass";
 
-        // Minimal breast milk reference (ml/day by DOL)
+        // Minimal breast milk reference (ml/day by DOL range)
         const minimalMilkByDOL = {
-            0: 0,
-            1: 0,
-            2: 0,
-            3: 0,
-            4: 50,
-            5: 50,
-            6: 50,
-            7: 50,
-            8: 300,
-            9: 300,
-            10: 300,
-            11: 400,
-            12: 400,
-            13: 400,
-            14: 400,
-            15: 500
-            // For DOL > 15, use 500 as default
+            0: 0,   // DOL 0–3
+            4: 50,  // DOL 4–7
+            8: 300, // DOL 8–10
+            11: 400, // DOL 11–14
+            15: 500 // DOL 15+
         };
 
         // Tailored reminders/info by DOL range
@@ -454,20 +442,13 @@
                 let supplyMessage = "";
                 if (minimalToday === null) {
                     supplyMessage = "We need the baby's date of birth to assess milk adequacy. Please ask the healthcare team to update it.";
-                } else if (minimalToday === 0) {
-                    supplyMessage = `Day ${currentDOL} is an early stage — small amounts are normal. Today's total is ${todayMl} ml.<br>
-                    Keep expressing at least 8 times per day (every 2–3 hours), including once at night.`;
                 } else if (todayMl >= minimalToday) {
-                    supplyMessage = `Great job! Today's total is ${todayMl} ml, which meets the reference of ${minimalToday} ml for Day ${currentDOL}.`;
-                    if (minimalToday > 0 && todayMl > minimalToday * 1.5) {
-                        supplyMessage += "<br>If you are getting more milk and faster milk flow during hand expression, you may try to use breast pump for 15 minutes per side.";
-                    }
+                    supplyMessage = "You have already done a good job! Keep it up!<br>" +
+                        "If you are getting more milk and faster milk flow during hand expression, you may try to use breast pump for 15 minutes per side";
                 } else {
-                    const gap = Math.round(minimalToday - todayMl);
-                    supplyMessage = `You're doing wonderfully! Today's total is ${todayMl} ml. The reference for Day ${currentDOL} is ${minimalToday} ml — you're about ${gap} ml short.<br>
-                    Remember to do hand expression at least 6 to 8 times per day, and at least once at night.<br>
-                    Do you feel pain or engorgement in the breast? You may seek help from lactation consultant or the breastfeeding hotline at 2255 7381.<br>
-                    Let us know how we may assist you via the "Request Lactation Support" function.`;
+                    supplyMessage = "Remember to do hand expression at least 6 to 8 times per day, and at least once at night<br>" +
+                        "Do you feel pain or engorgement in the breast? You may seek help from lactation consultant or the breastfeeding hotline at 2255 7381<br>" +
+                        "Let us know how we may assist you via the \"Request Lactation Support\" function";
                 }
 
                 document.getElementById('celebration').innerHTML = supplyMessage;
