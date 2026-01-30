@@ -39,7 +39,10 @@
         th,td{padding:10px;border:1px solid #ddd;text-align:center}
         th{background:#e3f2fd;color:#1565c0}
         .live{font-size:12px;color:#4CAF50;text-align:center;margin:10px 0}
-        .celebration{font-size:18px;text-align:center;margin:20px 0;color:#d81b60;font-weight:bold;padding:15px;background:#fff3e0;border-radius:8px}
+        .supply-summary{font-size:16px;line-height:1.4;margin:20px 0;color:#333;font-weight:600;padding:15px;background:#fff3e0;border-radius:8px;text-align:left}
+        .supply-summary.good{background:#e8f5e9;color:#2e7d32}
+        .supply-summary.low{background:#ffebee;color:#c62828}
+        .supply-summary.neutral{background:#e3f2fd;color:#1565c0}
         #google_translate_element { text-align: center; margin: 15px 0; }
         .goog-te-gadget-simple { background-color: #f0f0f0 !important; border: 1px solid #ccc !important; padding: 8px !important; font-size: 14px !important; border-radius: 6px !important; }
         .timestamp{font-size:13px;color:#666;text-align:center;margin:10px 0}
@@ -106,7 +109,7 @@
         <div id="stats"></div>
         <div id="last-updated" class="timestamp"></div>
         <div id="today-total">Today's Total: 0 ml</div>
-        <div id="celebration" class="celebration" style="display:none"></div>
+        <div id="supply-summary" class="supply-summary" style="display:none"></div>
 
         <div id="consult-form" class="consult-form">
             <label>Please tell us how we can assist you:</label>
@@ -203,8 +206,8 @@
         let currentUser = null;
         const hcwPassword = "hcwpass";
 
-        // Minimal breast milk reference (ml/day by DOL)
-        const minimalMilkByDOL = {
+        // Breast milk volume reference (ml/day by DOL)
+        const milkReferenceByDOL = {
             0: 0,
             1: 0,
             2: 0,
@@ -221,8 +224,9 @@
             13: 400,
             14: 400,
             15: 500
-            // For DOL > 15, use 500 as default
+            // For DOL > 15, use the last available reference value
         };
+        const referenceDays = Object.keys(milkReferenceByDOL).map(Number).sort((a, b) => a - b);
 
         // Tailored reminders/info by DOL range
         const dolReminders = {
@@ -241,8 +245,32 @@
             `,
             "8+": `
                 Great job building your supply! Keep consistent expression (aim for 8–10 times per day).
+            `,
+            "unknown": `
+                Please ask the healthcare team to update your baby's date of birth so we can provide day-specific guidance.<br>
+                In the meantime, aim to express 8-10 times per day, including once at night.
             `
         };
+
+        function calculateDayOfLife(dobDate) {
+            if (!dobDate) return null;
+            const birthStart = new Date(dobDate.getFullYear(), dobDate.getMonth(), dobDate.getDate());
+            const today = new Date();
+            const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const diffMs = todayStart - birthStart;
+            if (diffMs < 0) return 0;
+            return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        }
+
+        function getReferenceForDOL(dol) {
+            if (dol === null || referenceDays.length === 0) return null;
+            let referenceDay = referenceDays[0];
+            for (const day of referenceDays) {
+                if (dol >= day) referenceDay = day;
+                else break;
+            }
+            return { day: referenceDay, ml: milkReferenceByDOL[referenceDay] };
+        }
 
         db.collection("users").onSnapshot(() => {
             if (currentUser === 'hcw') updateBedsTable();
@@ -345,14 +373,33 @@
             db.collection("users").doc(currentUser).get().then(doc => {
                 const d = doc.data();
                 const target = (d.volumePerFeed || 0) * (d.numFeeds || 0);
-                const todayMl = d.lastUpdate === new Date().toISOString().slice(0,10) ? (d.todayMl || 0) : 0;
+                const todayStr = new Date().toISOString().slice(0,10);
+                const hasTodayEntry = d.lastUpdate === todayStr;
+                const todayMl = hasTodayEntry ? (d.todayMl || 0) : 0;
 
-                document.getElementById('volume-per-bottle').value = d.todayVolumePerBottle || '';
-                document.getElementById('num-bottles').value = d.todayNumBottles || '';
+                document.getElementById('volume-per-bottle').value = hasTodayEntry ? (d.todayVolumePerBottle || '') : '';
+                document.getElementById('num-bottles').value = hasTodayEntry ? (d.todayNumBottles || '') : '';
+
+                let currentDOL = null;
+                if (d.dob) {
+                    currentDOL = calculateDayOfLife(d.dob.toDate());
+                }
+
+                const reference = getReferenceForDOL(currentDOL);
+                let referenceLine = "";
+                if (reference && currentDOL !== null) {
+                    const label = reference.day === currentDOL
+                        ? `Reference for Day ${currentDOL}`
+                        : `Reference for Day ${reference.day} (used for Day ${currentDOL})`;
+                    referenceLine = `<br><strong>${label}:</strong> ${reference.ml} ml/day`;
+                } else {
+                    referenceLine = "<br><strong>Reference:</strong> add baby's date of birth to compare";
+                }
 
                 document.getElementById('stats').innerHTML = `
                     <strong>Today's Target:</strong> ${d.volumePerFeed||0} ml × ${d.numFeeds||0} bottles = <strong>${target} ml</strong><br>
-                    <strong>Today's Provided:</strong> ${d.todayVolumePerBottle||0} ml × ${d.todayNumBottles||0} bottles = <strong>${todayMl} ml</strong>
+                    <strong>Today's Provided:</strong> ${hasTodayEntry ? (d.todayVolumePerBottle||0) : 0} ml × ${hasTodayEntry ? (d.todayNumBottles||0) : 0} bottles = <strong>${todayMl} ml</strong>
+                    ${referenceLine}
                 `;
 
                 document.getElementById('today-total').textContent = `Today's Total: ${todayMl} ml`;
@@ -367,25 +414,26 @@
                     document.getElementById('last-updated').textContent = "";
                 }
 
-                // Baby Info (DOL + Weight)
-                let currentDOL = 0;
-                let babyInfo = "";
-                if (d.dob) {
-                    const dob = d.dob.toDate();
-                    const today = new Date();
-                    currentDOL = Math.floor((today - dob) / (1000 * 60 * 60 * 24)); // Birth day = Day 0
-                    babyInfo += `<strong>Day of Life:</strong> ${currentDOL}<br>`;
-                }
-                if (d.weight_kg) {
-                    babyInfo += `<strong>Current Weight:</strong> ${d.weight_kg.toFixed(3)} kg<br>`;
+                // Baby Info (Day postpartum + Weight)
+                const dolDisplay = document.getElementById('dol-display');
+                if (currentDOL === null) {
+                    dolDisplay.innerHTML = "<strong>Day postpartum:</strong> Not set (ask staff to enter DOB)";
                 } else {
-                    babyInfo += `<strong>Current Weight:</strong> -<br>`;
+                    dolDisplay.innerHTML = `<strong>Day postpartum:</strong> ${currentDOL}`;
                 }
-                document.getElementById('baby-info').innerHTML = babyInfo;
+
+                const weightDisplay = document.getElementById('weight-display');
+                if (typeof d.weight_kg === 'number' && !isNaN(d.weight_kg)) {
+                    weightDisplay.innerHTML = `<strong>Current Weight:</strong> ${d.weight_kg.toFixed(3)} kg`;
+                } else {
+                    weightDisplay.innerHTML = "<strong>Current Weight:</strong> -";
+                }
 
                 // Tailored DOL reminder/info
                 let reminderText = "";
-                if (currentDOL <= 3) {
+                if (currentDOL === null) {
+                    reminderText = dolReminders["unknown"];
+                } else if (currentDOL <= 3) {
                     reminderText = dolReminders["0-3"];
                 } else if (currentDOL <= 7) {
                     reminderText = dolReminders["4-7"];
@@ -402,29 +450,60 @@
                     document.getElementById('fasting-message').style.display = 'none';
                 }
 
-                // Minimal supply check & tailored message
-                let minimalToday = 500;
-                if (currentDOL <= 3) minimalToday = 0;
-                else if (currentDOL <= 7) minimalToday = 50;
-                else if (currentDOL <= 10) minimalToday = 300;
-                else if (currentDOL <= 14) minimalToday = 400;
+                // Supply adequacy check using reference
+                const supplySummary = document.getElementById('supply-summary');
+                let summaryClass = "supply-summary neutral";
+                let summaryHtml = "";
 
-                let supplyMessage = "";
-                if (todayMl >= minimalToday) {
-                    supplyMessage = "You have already done a good job! Keep it up!";
-                    if (todayMl > minimalToday * 1.5) {
-                        supplyMessage += "<br>If you are getting more milk and faster milk flow during hand expression, you may try to use breast pump for 15 minutes per side.";
-                    }
+                if (currentDOL === null || !reference) {
+                    summaryHtml = `
+                        <strong>Adequacy:</strong> Pending (date of birth not set)<br>
+                        <strong>Day postpartum:</strong> Not set<br>
+                        <strong>Mother's total today:</strong> ${todayMl} ml<br><br>
+                        Please ask staff to update baby's date of birth to enable the reference check.
+                    `;
                 } else {
-                    const gap = Math.round(minimalToday - todayMl);
-                    supplyMessage = `Remember to do hand expression at least 6 to 8 times per day, and at least once at night.<br>
-                    Do you feel pain or engorgement in the breast? You may seek help from lactation consultant or the breastfeeding hotline at 2255 7381.<br>
-                    Let us know how we may assist you via the "Request Lactation Support" function.<br><br>
-                    You're doing wonderfully! 💕 Today's minimal need is ${minimalToday} ml — you're close (only ~${gap} ml more).`;
+                    const referenceLabel = reference.day === currentDOL
+                        ? `Day ${currentDOL}`
+                        : `Day ${reference.day} (used for Day ${currentDOL})`;
+
+                    if (!hasTodayEntry) {
+                        summaryHtml = `
+                            <strong>Adequacy:</strong> Pending (no entry for today)<br>
+                            <strong>Day postpartum:</strong> ${currentDOL}<br>
+                            <strong>Reference (${referenceLabel}):</strong> ${reference.ml} ml/day<br>
+                            <strong>Mother's total today:</strong> ${todayMl} ml<br><br>
+                            Please update today's entry when you are ready.
+                        `;
+                    } else if (todayMl >= reference.ml) {
+                        summaryClass = "supply-summary good";
+                        summaryHtml = `
+                            <strong>Adequacy:</strong> Adequate<br>
+                            <strong>Day postpartum:</strong> ${currentDOL}<br>
+                            <strong>Reference (${referenceLabel}):</strong> ${reference.ml} ml/day<br>
+                            <strong>Mother's total today:</strong> ${todayMl} ml<br><br>
+                            Great job meeting today's reference amount. Keep a regular expression schedule.
+                        `;
+                        if (todayMl > reference.ml * 1.5) {
+                            summaryHtml += "<br>If milk is flowing well, you may try a pump session for 15 minutes per side.";
+                        }
+                    } else {
+                        const gap = Math.round(reference.ml - todayMl);
+                        summaryClass = "supply-summary low";
+                        summaryHtml = `
+                            <strong>Adequacy:</strong> Below reference<br>
+                            <strong>Day postpartum:</strong> ${currentDOL}<br>
+                            <strong>Reference (${referenceLabel}):</strong> ${reference.ml} ml/day<br>
+                            <strong>Mother's total today:</strong> ${todayMl} ml<br><br>
+                            You are about ${gap} ml below today's reference. Try to express 6-8 times, including once at night.<br>
+                            If you have pain or engorgement, please request lactation support.
+                        `;
+                    }
                 }
 
-                document.getElementById('celebration').innerHTML = supplyMessage;
-                document.getElementById('celebration').style.display = 'block';
+                supplySummary.innerHTML = summaryHtml;
+                supplySummary.className = summaryClass;
+                supplySummary.style.display = 'block';
             });
         }
 
@@ -542,12 +621,14 @@
 
                     let dol = "-";
                     if (d.dob) {
-                        const dobDate = d.dob.toDate();
-                        const todayDate = new Date();
-                        dol = Math.floor((todayDate - dobDate) / (1000 * 60 * 60 * 24));
+                        dol = calculateDayOfLife(d.dob.toDate());
                     }
 
-                    let weightDisplay = d.weight_kg ? d.weight_kg.toFixed(3) + " kg" : "-";
+                    let weightDisplay = "-";
+                    if (typeof d.weight_kg === 'number' && !isNaN(d.weight_kg)) {
+                        weightDisplay = d.weight_kg.toFixed(3) + " kg";
+                    }
+                    const dolText = dol === "-" ? "-" : `Day ${dol}`;
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
@@ -557,7 +638,7 @@
                         <td><strong>${total} ml</strong></td>
                         <td><strong>${pdbm} ml</strong></td>
                         <td>${lastUpdated || "-"}</td>
-                        <td>Day ${dol}</td>
+                        <td>${dolText}</td>
                         <td>${weightDisplay}</td>
                         <td><button class="edit" onclick="editBed('${doc.id}')">✏️</button></td>
                     `;
