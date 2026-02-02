@@ -74,6 +74,9 @@
         .star-list{list-style:none;padding-left:0;margin:6px 0 0 0}
         .star-list li{position:relative;padding-left:18px}
         .star-list li::before{content:"☆";position:absolute;left:0;color:var(--accent)}
+        .update-banner{display:none;position:sticky;top:0;z-index:5;margin:10px 0;padding:10px 12px;background:#FFF0ED;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow)}
+        .update-banner p{margin:0;font-size:13px;color:var(--text)}
+        .update-banner button{margin-top:8px;width:auto;padding:8px 12px}
         .chat-log{margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:12px;background:#FFF7F5;max-height:260px;overflow-y:auto}
         .chat-message{display:flex;flex-direction:column;margin-bottom:10px}
         .chat-message.mother .chat-bubble{background:#FFF0ED;align-self:flex-start}
@@ -87,6 +90,11 @@
 <body>
     <!-- Google Translate Widget -->
     <div id="google_translate_element"></div>
+
+    <div id="update-banner" class="update-banner">
+        <p>New update available. Please refresh to get the latest version.</p>
+        <button onclick="applyAppUpdate()">Refresh now</button>
+    </div>
 
     <h1>Expressed Breast Milk (EBM) Collection App</h1>
 
@@ -251,6 +259,7 @@
         let motherChatSynced = false;
         let idleTimerId = null;
         const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+        const APP_VERSION = "2026-01-30-01";
         const hcwPassword = "hcwpass";
 
         // Minimal breast milk reference (ml/day by DOL range)
@@ -542,6 +551,25 @@
 
         function startIdleTracking() {
             resetIdleTimer();
+        }
+
+        function applyAppUpdate() {
+            const url = new URL(window.location.href);
+            url.searchParams.set("v", Date.now().toString());
+            window.location.replace(url.toString());
+        }
+
+        function checkForUpdates() {
+            fetch(`/version.json?v=${Date.now()}`, { cache: "no-store" })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data || !data.version) return;
+                    if (data.version !== APP_VERSION) {
+                        const banner = document.getElementById("update-banner");
+                        if (banner) banner.style.display = "block";
+                    }
+                })
+                .catch(() => {});
         }
 
         db.collection("users").onSnapshot(() => {
@@ -951,6 +979,11 @@
             document.addEventListener(evt, () => {
                 if (currentUser) resetIdleTimer();
             }, { passive: true });
+        });
+
+        window.addEventListener("load", () => {
+            checkForUpdates();
+            setInterval(checkForUpdates, 5 * 60 * 1000);
         });
 
     </script>
