@@ -65,7 +65,6 @@
         .timestamp{font-size:12px;color:var(--muted);text-align:center;margin:8px 0}
         .edit-form{margin-top:10px;padding:12px;background:#FFF7F5;border-radius:10px;border:1px solid var(--border);display:none}
         .total-row{background:#FFF0ED !important;font-weight:bold}
-        .consult-form{margin-top:10px;padding:12px;background:#FFF7F5;border-radius:10px;border:1px solid var(--border);display:none}
         .fasting-message{font-size:16px;color:#8D3B3B;text-align:center;margin:18px 0;font-weight:600}
         .reminder-box{margin-top:12px;padding:12px;background:#FFF7F5;border-radius:12px;font-size:14px;border:1px solid var(--border);text-align:left}
         .reminder-box ul, #celebration ul{margin:0;padding-left:20px;list-style-position:outside}
@@ -76,14 +75,6 @@
         .star-list li::before{content:"☆";position:absolute;left:0;color:var(--accent)}
         .update-banner{display:none;position:sticky;top:0;z-index:5;margin:10px 0;padding:10px 12px;background:#FFF0ED;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow)}
         .update-banner p{margin:0;font-size:13px;color:var(--text)}
-        .chat-log{margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:12px;background:#FFF7F5;max-height:260px;overflow-y:auto}
-        .chat-message{display:flex;flex-direction:column;margin-bottom:10px}
-        .chat-message.mother .chat-bubble{background:#FFF0ED;align-self:flex-start}
-        .chat-message.hcw .chat-bubble{background:#F3E5F5;align-self:flex-end}
-        .chat-bubble{padding:8px 10px;border-radius:10px;max-width:100%;border:1px solid var(--border)}
-        .chat-meta{font-size:11px;color:var(--muted);margin-top:4px}
-        .chat-empty{font-size:12px;color:var(--muted);text-align:center;padding:10px}
-        .chat-controls{margin-top:10px}
     </style>
 </head>
 <body>
@@ -140,7 +131,6 @@
         </div>
 
         <button class="refresh" onclick="loadTodayData()">Refresh</button>
-        <button class="consult" onclick="requestConsult()">Request Lactation Support</button>
         <button class="logout" onclick="logout()">Logout</button>
 
         <div id="stats"></div>
@@ -148,14 +138,6 @@
         <div id="today-total">Today's Total: 0 ml</div>
         <div id="celebration" class="celebration" style="display:none"></div>
 
-        <div id="consult-form" class="consult-form">
-            <div id="consult-chat-log" class="chat-log"></div>
-            <div class="chat-controls">
-                <label>Your message:</label>
-                <textarea id="consult-message" rows="3" placeholder="Type your message..."></textarea>
-                <button onclick="submitConsult()">Send Message</button>
-            </div>
-        </div>
     </div>
 
     <!-- HCW View -->
@@ -217,19 +199,6 @@
             <tbody></tbody>
         </table>
 
-        <!-- Lactation Support Chat -->
-        <div class="section" style="margin-top:30px">
-            <h3>Lactation Support Chats</h3>
-            <label>Select Bed:</label>
-            <select id="hcw-chat-select" onchange="loadHcwChat()"></select>
-            <div id="hcw-chat-log" class="chat-log"></div>
-            <div class="chat-controls">
-                <label>Reply:</label>
-                <textarea id="hcw-chat-message" rows="3" placeholder="Type a response..."></textarea>
-                <button onclick="sendHcwMessage()">Send Reply</button>
-            </div>
-        </div>
-
         <button class="logout" onclick="logout()">Logout</button>
     </div>
 
@@ -251,10 +220,6 @@
         const db = firebase.firestore();
 
         let currentUser = null;
-        let currentDisplayId = null;
-        let motherChatUnsub = null;
-        let hcwChatUnsub = null;
-        let motherChatSynced = false;
         let idleTimerId = null;
         const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
         const VERSION_STORAGE_KEY = "ebm_app_version_tag";
@@ -345,197 +310,6 @@
             return dolReminders["8+"];
         }
 
-        function formatTimestamp(ts) {
-            if (!ts) return "Sending...";
-            const date = ts.toDate ? ts.toDate() : ts;
-            if (!date || Number.isNaN(date.getTime())) return "";
-            return date.toLocaleString();
-        }
-
-        function renderChatMessages(container, messages) {
-            if (!container) return;
-            container.innerHTML = "";
-            if (!messages.length) {
-                container.innerHTML = '<div class="chat-empty">No messages yet.</div>';
-                return;
-            }
-
-            messages.forEach(msg => {
-                const wrapper = document.createElement("div");
-                const sender = msg.sender === "hcw" ? "hcw" : "mother";
-                wrapper.className = `chat-message ${sender}`;
-
-                const bubble = document.createElement("div");
-                bubble.className = "chat-bubble";
-                bubble.textContent = msg.text || "";
-
-                const meta = document.createElement("div");
-                meta.className = "chat-meta";
-                const displayTime = formatTimestamp(msg.timestamp || msg.createdAt);
-                meta.textContent = `${sender === "hcw" ? "Admin" : "Mother"} - ${displayTime}`;
-
-                wrapper.appendChild(bubble);
-                wrapper.appendChild(meta);
-                container.appendChild(wrapper);
-            });
-
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function subscribeChatMessages(bedId, container) {
-            if (!bedId || !container) return null;
-            return db.collection("consult_chats")
-                .doc(bedId)
-                .collection("messages")
-                .orderBy("createdAt", "asc")
-                .onSnapshot(snapshot => {
-                    const messages = snapshot.docs.map(doc => doc.data());
-                    renderChatMessages(container, messages);
-                });
-        }
-
-        function subscribeUserChatMessages(bedId, container) {
-            if (!bedId || !container) return null;
-            return db.collection("users")
-                .doc(bedId)
-                .collection("chat_messages")
-                .orderBy("createdAt", "asc")
-                .onSnapshot(snapshot => {
-                    const messages = snapshot.docs.map(doc => doc.data());
-                    renderChatMessages(container, messages);
-                });
-        }
-
-        function ensureUserChatMirror(bedId) {
-            if (!bedId || motherChatSynced) return Promise.resolve();
-            const userMessagesRef = db.collection("users").doc(bedId).collection("chat_messages");
-            const consultMessagesRef = db.collection("consult_chats").doc(bedId).collection("messages");
-
-            return userMessagesRef.limit(1).get().then(snapshot => {
-                if (!snapshot.empty) {
-                    motherChatSynced = true;
-                    return;
-                }
-                return consultMessagesRef.orderBy("createdAt", "asc").get().then(chatSnap => {
-                    if (chatSnap.empty) {
-                        motherChatSynced = true;
-                        return;
-                    }
-                    const batch = db.batch();
-                    chatSnap.forEach(doc => {
-                        batch.set(userMessagesRef.doc(), doc.data());
-                    });
-                    return batch.commit().then(() => {
-                        motherChatSynced = true;
-                    });
-                });
-            }).catch(() => {
-                motherChatSynced = true;
-            });
-        }
-
-        function sendChatMessage(bedId, sender, text) {
-            const trimmed = (text || "").trim();
-            if (!trimmed) return Promise.resolve();
-
-            const chatRef = db.collection("consult_chats").doc(bedId);
-            const mirrorRef = db.collection("users").doc(bedId).collection("chat_messages");
-            const now = new Date();
-            const displayId = sender === "mother" ? (currentDisplayId || bedId) : bedId;
-            const payload = {
-                text: trimmed,
-                sender: sender,
-                createdAt: now,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            };
-
-            return Promise.all([
-                chatRef.collection("messages").add(payload),
-                mirrorRef.add(payload)
-            ]).then(() => {
-                return chatRef.set({
-                    displayId: displayId,
-                    lastMessage: trimmed,
-                    lastSender: sender,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
-            });
-        }
-
-        function initMotherChat() {
-            const log = document.getElementById("consult-chat-log");
-            if (motherChatUnsub) {
-                motherChatUnsub();
-                motherChatUnsub = null;
-            }
-            ensureUserChatMirror(currentUser).then(() => {
-                motherChatUnsub = subscribeUserChatMessages(currentUser, log);
-            }).catch(() => {
-                motherChatUnsub = subscribeUserChatMessages(currentUser, log);
-            });
-        }
-
-        function loadChatBedList() {
-            const sel = document.getElementById("hcw-chat-select");
-            const log = document.getElementById("hcw-chat-log");
-            if (!sel) return;
-
-            const current = sel.value;
-            sel.innerHTML = '<option value="">-- Select Bed --</option>';
-
-            db.collection("consult_chats").orderBy("updatedAt", "desc").get().then(snap => {
-                if (snap.empty) {
-                    const opt = document.createElement("option");
-                    opt.value = "";
-                    opt.textContent = "No chats yet";
-                    sel.appendChild(opt);
-                    if (log) log.innerHTML = '<div class="chat-empty">No chats yet.</div>';
-                    return;
-                }
-
-                snap.forEach(doc => {
-                    const data = doc.data();
-                    const opt = document.createElement("option");
-                    opt.value = doc.id;
-                    opt.textContent = data.displayId || doc.id;
-                    sel.appendChild(opt);
-                });
-
-                if (current) {
-                    sel.value = current;
-                    loadHcwChat();
-                } else if (log) {
-                    log.innerHTML = '<div class="chat-empty">Select a bed to view messages.</div>';
-                }
-            });
-        }
-
-        function loadHcwChat() {
-            const bedId = document.getElementById("hcw-chat-select").value;
-            const log = document.getElementById("hcw-chat-log");
-            if (hcwChatUnsub) {
-                hcwChatUnsub();
-                hcwChatUnsub = null;
-            }
-            if (!bedId) {
-                if (log) log.innerHTML = '<div class="chat-empty">Select a bed to view messages.</div>';
-                return;
-            }
-            hcwChatUnsub = subscribeChatMessages(bedId, log);
-        }
-
-        function sendHcwMessage() {
-            const bedId = document.getElementById("hcw-chat-select").value;
-            const messageEl = document.getElementById("hcw-chat-message");
-            if (!bedId) return alert("Select a bed first");
-            const message = (messageEl.value || "").trim();
-            if (!message) return alert("Please enter a message");
-
-            sendChatMessage(bedId, "hcw", message).then(() => {
-                messageEl.value = "";
-            });
-        }
-
         function resetIdleTimer() {
             if (idleTimerId) {
                 clearTimeout(idleTimerId);
@@ -601,10 +375,6 @@
             if (currentUser === 'hcw') updateBedsTable();
         });
 
-        db.collection("consult_chats").onSnapshot(() => {
-            if (currentUser === 'hcw') loadChatBedList();
-        });
-
         function normalizeId(id) {
             return id.trim().toUpperCase();
         }
@@ -650,12 +420,10 @@
 
             if (id === 'HCW' && pass === hcwPassword) {
                 currentUser = 'hcw';
-                currentDisplayId = null;
                 document.getElementById('login-section').style.display = 'none';
                 document.getElementById('hcw-section').style.display = 'block';
                 populateBedSelect();
                 updateBedsTable();
-                loadChatBedList();
                 startIdleTracking();
                 return;
             }
@@ -663,7 +431,6 @@
             db.collection("users").doc(id).get().then(doc => {
                 if (!doc.exists || doc.data().password !== pass) return alert("Wrong ID/password");
                 currentUser = id;
-                currentDisplayId = doc.data().displayId || id;
                 document.getElementById('login-section').style.display = 'none';
                 document.getElementById('parent-section').style.display = 'block';
                 document.getElementById('current-bed').textContent = doc.data().displayId || id;
@@ -674,16 +441,6 @@
 
         function logout() {
             currentUser = null;
-            currentDisplayId = null;
-            if (motherChatUnsub) {
-                motherChatUnsub();
-                motherChatUnsub = null;
-            }
-            if (hcwChatUnsub) {
-                hcwChatUnsub();
-                hcwChatUnsub = null;
-            }
-            motherChatSynced = false;
             if (idleTimerId) {
                 clearTimeout(idleTimerId);
                 idleTimerId = null;
@@ -798,33 +555,11 @@
                         "</ul>" +
                         "</li>" +
                         "<li>If your breast engorgement exceeds 24 hours or milk does not \"come in\" on the 4th day after delivery, please seek help from lactation consultant or the breastfeeding hotline (2255 7381).</li>" +
-                        "<li>Let us know how we may assist you via the \"Request Lactation Support\" function.</li>" +
                         "</ul>";
                 }
 
                 document.getElementById('celebration').innerHTML = supplyMessage;
                 document.getElementById('celebration').style.display = 'block';
-            });
-        }
-
-        function requestConsult() {
-            document.getElementById('consult-form').style.display = 'block';
-            initMotherChat();
-            const box = document.getElementById('consult-form');
-            const input = document.getElementById('consult-message');
-            if (box) {
-                box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-            if (input) {
-                input.focus();
-            }
-        }
-
-        function submitConsult() {
-            const message = document.getElementById('consult-message').value.trim();
-            if (!message) return alert("Please enter a message");
-            sendChatMessage(currentUser, "mother", message).then(() => {
-                document.getElementById('consult-message').value = '';
             });
         }
 
