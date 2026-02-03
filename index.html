@@ -18,6 +18,7 @@
                 layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
                 autoDisplay: false
             }, 'google_translate_element');
+            setTimeout(syncLanguageSelector, 0);
         }
     </script>
     <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
@@ -61,8 +62,10 @@
         th{background:#FFF0ED;color:var(--text);font-weight:600}
         .live{font-size:12px;color:var(--accent);text-align:center;margin:8px 0}
         .celebration{font-size:16px;text-align:left;margin:18px 0;color:var(--text);font-weight:600;padding:14px;background:#FFF7F5;border-radius:12px;border:1px solid var(--border)}
-        #google_translate_element { text-align: center; margin: 12px 0; }
-        .goog-te-gadget-simple { background-color: #FFF7F5 !important; border: 1px solid var(--border) !important; padding: 8px !important; font-size: 13px !important; border-radius: 8px !important; }
+        #google_translate_element { height:0; overflow:hidden; visibility:hidden; }
+        .translate-controls{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:12px;margin:12px 0;text-align:left}
+        .translate-controls label{margin:0 0 6px 0;font-size:13px;color:var(--muted)}
+        .translate-controls select{margin-top:0}
         .timestamp{font-size:12px;color:var(--muted);text-align:center;margin:8px 0}
         .edit-form{margin-top:10px;padding:12px;background:#FFF7F5;border-radius:10px;border:1px solid var(--border);display:none}
         .total-row{background:#FFF0ED !important;font-weight:bold}
@@ -81,13 +84,27 @@
 <body>
     <!-- Google Translate Widget -->
     <div id="google_translate_element"></div>
-
+    <div class="translate-controls">
+        <label for="language-select">Language</label>
+        <select id="language-select" onchange="setLanguagePreference(this.value)">
+            <option value="en">English</option>
+            <option value="zh-TW">繁體中文</option>
+            <option value="zh-CN">简体中文</option>
+            <option value="ms">Bahasa Melayu</option>
+            <option value="ta">தமிழ்</option>
+            <option value="ja">日本語</option>
+            <option value="de">Deutsch</option>
+            <option value="id">Bahasa Indonesia</option>
+            <option value="vi">Tiếng Việt</option>
+        </select>
+    </div>
+ 
     <div id="update-banner" class="update-banner">
         <p>Updating to the latest version...</p>
     </div>
-
+ 
     <h1>Expressed Breast Milk (EBM) Collection App</h1>
-
+ 
     <!-- Login -->
     <div id="login-section" class="section">
         <h2>Login</h2>
@@ -96,7 +113,7 @@
         <label>Password:</label>
         <input type="password" id="password">
         <button onclick="login()">Login</button>
-
+ 
         <div class="instructions">
             <strong>ID = Baby initials + bed number</strong><br>
             Examples: CTM01, LKM101, ABC08<br>
@@ -108,18 +125,18 @@
             If you have any concerns regarding updates on your baby’s condition or lactation support, please consult our team of doctors and nurses during visiting hours.</small>
         </div>
     </div>
-
+ 
     <!-- Parent View -->
     <div id="parent-section" class="section" style="display:none">
         <h2>Welcome, <span id="current-bed"></span></h2>
-
+ 
         <div id="baby-info" class="section" style="margin-bottom:20px">
             <h3>Baby Information</h3>
             <div id="dol-display"></div>
             <div id="weight-display"></div>
             <div id="dolly-reminder" class="reminder-box"></div>
         </div>
-
+ 
         <div class="section">
             <h2>Today's Expressed Breast Milk (EBM) Provided</h2>
             <div id="fasting-message" class="fasting-message" style="display:none"></div>
@@ -128,27 +145,27 @@
                 <input type="number" id="volume-per-bottle" min="1" step="1" placeholder="60">
                 <label>Number of Bottles:</label>
                 <input type="number" id="num-bottles" min="1" step="1" placeholder="8">
-
+ 
                 <button onclick="saveTodayProvision()">Save Today's Provision</button>
                 <p style="font-size:14px;color:#666;margin-top:10px">
                     You can update anytime today — it overwrites the previous entry.</p>
             </div>
         </div>
-
+ 
         <button class="refresh" onclick="loadTodayData()">Refresh</button>
         <button class="logout" onclick="logout()">Logout</button>
-
+ 
         <div id="stats"></div>
         <div id="last-updated" class="timestamp"></div>
         <div id="today-total">Today's Total: 0 ml</div>
         <div id="celebration" class="celebration" style="display:none"></div>
-
+ 
     </div>
-
+ 
     <!-- HCW View -->
     <div id="hcw-section" class="section" style="display:none">
         <h2>Healthcare Worker Panel</h2>
-
+ 
         <!-- Registration in Admin Panel -->
         <div class="section">
             <h3>Register New Bed</h3>
@@ -162,10 +179,10 @@
             <input type="number" id="new-weight" min="0" step="0.001" placeholder="0.875">
             <button onclick="registerNewBed()" style="background:#FFC107">Register Bed</button>
         </div>
-
+ 
         <label>Select Bed:</label>
         <select id="hcw-bed-select"></select>
-
+ 
         <!-- Edit Form -->
         <div id="edit-form" class="edit-form">
             <h3>Edit Bed <span id="edit-bed-id"></span></h3>
@@ -180,12 +197,12 @@
             <button onclick="saveEdit()">Save Changes</button>
             <button onclick="cancelEdit()" style="background:#757575">Cancel</button>
         </div>
-
+ 
         <button class="delete" onclick="deleteBed()">Delete Selected Bed</button>
         <button class="export" onclick="exportToExcel()">Export Today's Data to Excel</button>
-
+ 
         <div class="live">Live — updates in seconds</div>
-
+ 
         <h3>Ward Overview — Today</h3>
         <table id="beds-table">
             <thead>
@@ -203,14 +220,14 @@
             </thead>
             <tbody></tbody>
         </table>
-
+ 
         <button class="logout" onclick="logout()">Logout</button>
     </div>
-
+ 
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
-
+ 
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyB223cqRnq49791LU9P7SU9TLJmYFkegJ4",
@@ -220,16 +237,16 @@
             messagingSenderId: "191753868886",
             appId: "1:191753868886:web:972dfce99ff2c2edbd0df7"
         };
-
+ 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-
+ 
         let currentUser = null;
         let idleTimerId = null;
         const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
         const VERSION_STORAGE_KEY = "ebm_app_version_tag";
         const hcwPassword = "hcwpass";
-
+ 
         // Minimal breast milk reference (ml/day by DOL range)
         const minimalMilkByDOL = {
             0: 0,   // DOL 0–3
@@ -238,7 +255,7 @@
             11: 400, // DOL 11–14
             15: 500 // DOL 15+
         };
-
+ 
         // Tailored reminders/info by DOL range
         const dolReminders = {
             "0-3": `
@@ -269,43 +286,43 @@
                 </ul>
             `
         };
-
+ 
         const MS_PER_DAY = 24 * 60 * 60 * 1000;
         const minimalMilkDOLs = Object.keys(minimalMilkByDOL)
             .map(Number)
             .filter(Number.isFinite)
             .sort((a, b) => a - b);
-
+ 
         function getDayOfLife(dobTimestamp) {
             if (!dobTimestamp) return null;
             const dobDate = dobTimestamp.toDate ? dobTimestamp.toDate() : dobTimestamp;
             if (!dobDate || Number.isNaN(dobDate.getTime())) return null;
-
+ 
             const today = new Date();
             const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
             const dobStart = new Date(dobDate.getFullYear(), dobDate.getMonth(), dobDate.getDate());
             const diffDays = Math.floor((todayStart - dobStart) / MS_PER_DAY);
-
+ 
             return diffDays < 0 ? 0 : diffDays;
         }
-
+ 
         function getMinimalMilkByDOL(dol) {
             if (dol === null || dol === undefined || Number.isNaN(dol)) return null;
             if (Object.prototype.hasOwnProperty.call(minimalMilkByDOL, dol)) {
                 return minimalMilkByDOL[dol];
             }
             if (minimalMilkDOLs.length === 0) return null;
-
+ 
             const maxDOL = minimalMilkDOLs[minimalMilkDOLs.length - 1];
             if (dol > maxDOL) return minimalMilkByDOL[maxDOL];
-
+ 
             for (let i = minimalMilkDOLs.length - 1; i >= 0; i--) {
                 if (dol >= minimalMilkDOLs[i]) return minimalMilkByDOL[minimalMilkDOLs[i]];
             }
-
+ 
             return minimalMilkByDOL[minimalMilkDOLs[0]];
         }
-
+ 
         function getReminderForDOL(dol) {
             if (dol === null || Number.isNaN(dol)) {
                 return "<ul><li>Please ask the healthcare team to add the baby's date of birth so we can show day-based guidance.</li></ul>";
@@ -314,7 +331,7 @@
             if (dol <= 7) return dolReminders["4-7"];
             return dolReminders["8+"];
         }
-
+ 
         function resetIdleTimer() {
             if (idleTimerId) {
                 clearTimeout(idleTimerId);
@@ -325,27 +342,27 @@
                 logout();
             }, IDLE_TIMEOUT_MS);
         }
-
+ 
         function startIdleTracking() {
             resetIdleTimer();
         }
-
+ 
         function applyAppUpdate() {
             const url = new URL(window.location.href);
             url.searchParams.set("v", Date.now().toString());
             window.location.replace(url.toString());
         }
-
+ 
         function getVersionCheckUrl() {
             const path = window.location.pathname;
             const basePath = path.endsWith("/") ? `${path}index.html` : path;
             return `${window.location.origin}${basePath}`;
         }
-
+ 
         function extractVersionTag(response) {
             return response.headers.get("etag") || response.headers.get("last-modified") || "";
         }
-
+ 
         function handleVersionTag(tag) {
             if (!tag) return;
             const stored = localStorage.getItem(VERSION_STORAGE_KEY);
@@ -358,7 +375,43 @@
                 localStorage.setItem(VERSION_STORAGE_KEY, tag);
             }
         }
-
+ 
+        function setTranslateCookie(lang) {
+            const value = `/en/${lang}`;
+            document.cookie = `googtrans=${value};path=/`;
+            document.cookie = `googtrans=${value};path=/;domain=${window.location.hostname}`;
+        }
+ 
+        function getTranslateCookieLang() {
+            const match = document.cookie.match(/(?:^|; )googtrans=([^;]+)/);
+            if (!match) return "en";
+            const value = decodeURIComponent(match[1]);
+            const parts = value.split("/");
+            return parts[2] || "en";
+        }
+ 
+        function applyLanguage(lang) {
+            setTranslateCookie(lang);
+            const combo = document.querySelector(".goog-te-combo");
+            if (combo) {
+                combo.value = lang;
+                combo.dispatchEvent(new Event("change"));
+            } else {
+                applyAppUpdate();
+            }
+        }
+ 
+        function setLanguagePreference(lang) {
+            applyLanguage(lang);
+        }
+ 
+        function syncLanguageSelector() {
+            const selector = document.getElementById("language-select");
+            if (!selector) return;
+            const lang = getTranslateCookieLang();
+            selector.value = lang;
+        }
+ 
         function checkForUpdates() {
             const url = getVersionCheckUrl();
             fetch(url, { method: "HEAD", cache: "no-store" })
@@ -375,24 +428,24 @@
                         .catch(() => {});
                 });
         }
-
+ 
         db.collection("users").onSnapshot(() => {
             if (currentUser === 'hcw') updateBedsTable();
         });
-
+ 
         function normalizeId(id) {
             return id.trim().toUpperCase();
         }
-
+ 
         function registerNewBed() {
             const rawId = document.getElementById('new-bed-id').value;
             const id = normalizeId(rawId);
             const pass = document.getElementById('new-bed-password').value;
             const dob = document.getElementById('new-dob').value;
             const weight = parseFloat(document.getElementById('new-weight').value);
-
+ 
             if (!rawId || !pass) return alert("Fill Bed ID and password");
-
+ 
             db.collection("users").doc(id).get().then(s => {
                 if (s.exists) return alert("This bed ID already exists");
                 db.collection("users").doc(id).set({
@@ -417,12 +470,12 @@
                 });
             });
         }
-
+ 
         function login() {
             const rawId = document.getElementById('user-id').value;
             const id = normalizeId(rawId);
             const pass = document.getElementById('password').value;
-
+ 
             if (id === 'HCW' && pass === hcwPassword) {
                 currentUser = 'hcw';
                 document.getElementById('login-section').style.display = 'none';
@@ -432,7 +485,7 @@
                 startIdleTracking();
                 return;
             }
-
+ 
             db.collection("users").doc(id).get().then(doc => {
                 if (!doc.exists || doc.data().password !== pass) return alert("Wrong ID/password");
                 currentUser = id;
@@ -443,7 +496,7 @@
                 startIdleTracking();
             });
         }
-
+ 
         function logout() {
             currentUser = null;
             if (idleTimerId) {
@@ -454,15 +507,15 @@
             document.getElementById('parent-section').style.display = 'none';
             document.getElementById('hcw-section').style.display = 'none';
         }
-
+ 
         function saveTodayProvision() {
             const vol = parseInt(document.getElementById('volume-per-bottle').value);
             const num = parseInt(document.getElementById('num-bottles').value);
             if (isNaN(vol) || isNaN(num) || vol <= 0 || num <= 0) return alert("Enter valid numbers");
-
+ 
             const ml = vol * num;
             const today = new Date().toISOString().slice(0,10);
-
+ 
             db.collection("users").doc(currentUser).update({
                 todayVolumePerBottle: vol,
                 todayNumBottles: num,
@@ -473,7 +526,7 @@
                 loadTodayData(); // Force refresh to show updated message/reminder
             });
         }
-
+ 
         function loadTodayData() {
             db.collection("users").doc(currentUser).get().then(doc => {
                 const d = doc.data();
@@ -483,25 +536,25 @@
                 const todayVol = hasTodayEntry ? (d.todayVolumePerBottle || 0) : 0;
                 const todayBottles = hasTodayEntry ? (d.todayNumBottles || 0) : 0;
                 const todayMl = hasTodayEntry ? (d.todayMl || (todayVol * todayBottles)) : 0;
-
+ 
                 document.getElementById('volume-per-bottle').value = hasTodayEntry ? (d.todayVolumePerBottle || '') : '';
                 document.getElementById('num-bottles').value = hasTodayEntry ? (d.todayNumBottles || '') : '';
-
+ 
                 const currentDOL = getDayOfLife(d.dob);
                 const minimalToday = getMinimalMilkByDOL(currentDOL);
                 const referenceLine = minimalToday === null
                     ? `<strong>Reference:</strong> Add baby's DOB to assess adequacy.<br>`
                     : `<strong>Reference for Day ${currentDOL}:</strong> ${minimalToday} ml/day — <strong>${todayMl >= minimalToday ? "Adequate" : "Below reference"}</strong><br>`;
-
+ 
                 document.getElementById('stats').innerHTML = `
                     <strong>Today's Target:</strong> ${d.volumePerFeed||0} ml × ${d.numFeeds||0} bottles = <strong>${target} ml</strong><br>
                     <strong>Today's Provided:</strong> ${todayVol} ml × ${todayBottles} bottles = <strong>${todayMl} ml</strong><br>
                     ${referenceLine}
                 `;
-
+ 
                 document.getElementById('today-total').textContent = `Today's Total: ${todayMl} ml`;
                 document.getElementById('today-total').className = todayMl >= target ? 'positive' : '';
-
+ 
                 if (d.lastUpdateTimestamp) {
                     const ts = d.lastUpdateTimestamp.toDate();
                     const dateStr = ts.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
@@ -510,26 +563,26 @@
                 } else {
                     document.getElementById('last-updated').textContent = "";
                 }
-
+ 
                 // Baby Info (DOL + Weight)
                 const dolDisplay = document.getElementById('dol-display');
                 const weightDisplay = document.getElementById('weight-display');
-
+ 
                 if (currentDOL === null) {
                     dolDisplay.innerHTML = `<strong>Day of Life:</strong> -`;
                 } else {
                     dolDisplay.innerHTML = `<strong>Day of Life:</strong> ${currentDOL}`;
                 }
-
+ 
                 if (d.weight_kg) {
                     weightDisplay.innerHTML = `<strong>Current Weight:</strong> ${d.weight_kg.toFixed(3)} kg`;
                 } else {
                     weightDisplay.innerHTML = `<strong>Current Weight:</strong> -`;
                 }
-
+ 
                 // Tailored DOL reminder/info
                 document.getElementById('dolly-reminder').innerHTML = getReminderForDOL(currentDOL);
-
+ 
                 // Fasting message
                 if (target === 0 && d.numFeeds === 0) {
                     document.getElementById('fasting-message').innerHTML = "Baby is currently kept fasting.";
@@ -537,7 +590,7 @@
                 } else {
                     document.getElementById('fasting-message').style.display = 'none';
                 }
-
+ 
                 // Minimal supply check & tailored message
                 let supplyMessage = "";
                 if (minimalToday === null) {
@@ -563,18 +616,18 @@
                         "<li>Please find our ward nurses if you need any lactation support!</li>" +
                         "</ul>";
                 }
-
+ 
                 document.getElementById('celebration').innerHTML = supplyMessage;
                 document.getElementById('celebration').style.display = 'block';
             });
         }
-
+ 
         function updateRequirement() {
             const bed = document.getElementById('hcw-bed-select').value;
             const vol = parseInt(document.getElementById('hcw-volume-per-feed').value);
             const feeds = parseInt(document.getElementById('hcw-num-feeds').value);
             if (!bed || isNaN(vol) || isNaN(feeds)) return alert("Check all fields");
-
+ 
             db.collection("users").doc(bed).update({
                 volumePerFeed: vol,
                 numFeeds: feeds,
@@ -585,7 +638,7 @@
                 document.getElementById('hcw-num-feeds').value = '';
             });
         }
-
+ 
         function deleteBed() {
             const bed = document.getElementById('hcw-bed-select').value;
             if (!bed) return alert("Select a bed first");
@@ -596,7 +649,7 @@
                 updateBedsTable();
             });
         }
-
+ 
         function editBed(bedId) {
             db.collection("users").doc(bedId).get().then(doc => {
                 const d = doc.data();
@@ -607,18 +660,18 @@
                 document.getElementById('edit-num-feeds').value = d.numFeeds || '';
                 document.getElementById('edit-form').style.display = 'block';
                 document.getElementById('edit-form').dataset.bedId = bedId;
-
+ 
                 document.getElementById('edit-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
         }
-
+ 
         function saveEdit() {
             const bedId = document.getElementById('edit-form').dataset.bedId;
             const dob = document.getElementById('edit-dob').value;
             const weight = parseFloat(document.getElementById('edit-weight').value);
             const vol = parseInt(document.getElementById('edit-volume-per-feed').value);
             const feeds = parseInt(document.getElementById('edit-num-feeds').value);
-
+ 
             db.collection("users").doc(bedId).update({
                 dob: dob ? firebase.firestore.Timestamp.fromDate(new Date(dob)) : null,
                 weight_kg: weight || null,
@@ -631,17 +684,17 @@
                 updateBedsTable();
             });
         }
-
+ 
         function cancelEdit() {
             document.getElementById('edit-form').style.display = 'none';
         }
-
+ 
         function updateBedsTable() {
             const tbody = document.querySelector('#beds-table tbody');
             tbody.innerHTML = '';
             const today = new Date().toISOString().slice(0,10);
             let cumulative_pdbm = 0;
-
+ 
             db.collection("users").get().then(snap => {
                 snap.forEach(doc => {
                     const d = doc.data();
@@ -652,7 +705,7 @@
                     const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
                     const pdbm = Math.max(0, target - total);
                     cumulative_pdbm += pdbm;
-
+ 
                     let lastUpdated = "";
                     if (d.lastUpdateTimestamp) {
                         const ts = d.lastUpdateTimestamp.toDate();
@@ -660,16 +713,16 @@
                         const timeStr = ts.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
                         lastUpdated = `${dateStr} at ${timeStr}`;
                     }
-
+ 
                     let dol = "-";
                     if (d.dob) {
                         const dobDate = d.dob.toDate();
                         const todayDate = new Date();
                         dol = Math.floor((todayDate - dobDate) / (1000 * 60 * 60 * 24));
                     }
-
+ 
                     let weightDisplay = d.weight_kg ? d.weight_kg.toFixed(3) + " kg" : "-";
-
+ 
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td><strong>${display}</strong></td>
@@ -685,7 +738,7 @@
                     if (pdbm === 0) row.style.background = '#e8f5e9';
                     tbody.appendChild(row);
                 });
-
+ 
                 const cumRow = document.createElement('tr');
                 cumRow.className = 'total-row';
                 cumRow.innerHTML = `
@@ -695,7 +748,7 @@
                 tbody.appendChild(cumRow);
             });
         }
-
+ 
         function populateBedSelect() {
             const sel = document.getElementById('hcw-bed-select');
             sel.innerHTML = '<option value="">-- Select Bed --</option>';
@@ -708,11 +761,11 @@
                 });
             });
         }
-
+ 
         function exportToExcel() {
             let csv = "Bed ID,Target (ml),Target Bottles,Mother Volume per Bottle,Mother Bottles,Mother Total,PDBM Required,Last Updated\n";
             const today = new Date().toISOString().slice(0,10);
-
+ 
             db.collection("users").get().then(snap => {
                 snap.forEach(doc => {
                     const d = doc.data();
@@ -722,16 +775,16 @@
                     const bottles = d.lastUpdate === today ? (d.todayNumBottles || 0) : 0;
                     const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
                     const pdbm = Math.max(0, target - total);
-
+ 
                     let lastUpdated = "";
                     if (d.lastUpdateTimestamp) {
                         const ts = d.lastUpdateTimestamp.toDate();
                         lastUpdated = ts.toLocaleString();
                     }
-
+ 
                     csv += `${display},${target},${d.numFeeds||0},${vol},${bottles},${total},${pdbm},"${lastUpdated}"\n`;
                 });
-
+ 
                 const blob = new Blob([csv], {type: 'text/csv'});
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -740,18 +793,19 @@
                 a.click();
             });
         }
-
+ 
         ["click", "keydown", "mousemove", "scroll", "touchstart"].forEach(evt => {
             document.addEventListener(evt, () => {
                 if (currentUser) resetIdleTimer();
             }, { passive: true });
         });
-
+ 
         window.addEventListener("load", () => {
+            syncLanguageSelector();
             checkForUpdates();
             setInterval(checkForUpdates, 5 * 60 * 1000);
         });
-
+ 
     </script>
 </body>
 </html>
