@@ -332,6 +332,21 @@
             return dolReminders["8+"];
         }
  
+        function calculatePdbmRequired(targetVol, targetBottles, motherVol, motherBottles) {
+            const reqVol = Math.max(0, parseInt(targetVol, 10) || 0);
+            const reqBottles = Math.max(0, parseInt(targetBottles, 10) || 0);
+            if (reqVol === 0 || reqBottles === 0) return 0;
+ 
+            const supplyVol = Math.max(0, parseInt(motherVol, 10) || 0);
+            const supplyBottles = Math.max(0, parseInt(motherBottles, 10) || 0);
+ 
+            const coveredBottles = Math.min(reqBottles, supplyBottles);
+            const missingBottles = Math.max(0, reqBottles - supplyBottles);
+            const perBottleTopUp = Math.max(0, reqVol - supplyVol);
+ 
+            return (missingBottles * reqVol) + (coveredBottles * perBottleTopUp);
+        }
+ 
         function resetIdleTimer() {
             if (idleTimerId) {
                 clearTimeout(idleTimerId);
@@ -703,7 +718,7 @@
                     const vol = d.lastUpdate === today ? (d.todayVolumePerBottle || 0) : 0;
                     const bottles = d.lastUpdate === today ? (d.todayNumBottles || 0) : 0;
                     const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
-                    const pdbm = Math.max(0, target - total);
+                    const pdbm = calculatePdbmRequired(d.volumePerFeed || 0, d.numFeeds || 0, vol, bottles);
                     cumulative_pdbm += pdbm;
  
                     let lastUpdated = "";
@@ -774,7 +789,7 @@
                     const vol = d.lastUpdate === today ? (d.todayVolumePerBottle || 0) : 0;
                     const bottles = d.lastUpdate === today ? (d.todayNumBottles || 0) : 0;
                     const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
-                    const pdbm = Math.max(0, target - total);
+                    const pdbm = calculatePdbmRequired(d.volumePerFeed || 0, d.numFeeds || 0, vol, bottles);
  
                     let lastUpdated = "";
                     if (d.lastUpdateTimestamp) {
