@@ -142,7 +142,7 @@
             <div id="fasting-message" class="fasting-message" style="display:none"></div>
             <div id="provision-form">
                 <label>Volume per Bottle (ml):</label>
-                <input type="number" id="volume-per-bottle" min="1" step="1" placeholder="60">
+                <input type="number" id="volume-per-bottle" min="0.1" step="0.1" placeholder="60">
                 <label>Number of Bottles:</label>
                 <input type="number" id="num-bottles" min="1" step="1" placeholder="8">
  
@@ -191,7 +191,7 @@
             <label>Current Weight (kg):</label>
             <input type="number" id="edit-weight" min="0" step="0.001">
             <label>Volume per Bottle (ml):</label>
-            <input type="number" id="edit-volume-per-feed" min="0" step="1">
+            <input type="number" id="edit-volume-per-feed" min="0.1" step="0.1">
             <label>Bottles per Day:</label>
             <input type="number" id="edit-num-feeds" min="1" step="1">
             <button onclick="saveEdit()">Save Changes</button>
@@ -333,11 +333,11 @@
         }
  
         function calculatePdbmRequired(targetVol, targetBottles, motherVol, motherBottles) {
-            const reqVol = Math.max(0, parseInt(targetVol, 10) || 0);
+            const reqVol = Math.max(0, parseFloat(targetVol) || 0);
             const reqBottles = Math.max(0, parseInt(targetBottles, 10) || 0);
             if (reqVol === 0 || reqBottles === 0) return 0;
  
-            const supplyVol = Math.max(0, parseInt(motherVol, 10) || 0);
+            const supplyVol = Math.max(0, parseFloat(motherVol) || 0);
             const supplyBottles = Math.max(0, parseInt(motherBottles, 10) || 0);
  
             const coveredBottles = Math.min(reqBottles, supplyBottles);
@@ -524,8 +524,8 @@
         }
  
         function saveTodayProvision() {
-            const vol = parseInt(document.getElementById('volume-per-bottle').value);
-            const num = parseInt(document.getElementById('num-bottles').value);
+            const vol = parseFloat(document.getElementById('volume-per-bottle').value);
+            const num = parseInt(document.getElementById('num-bottles').value, 10);
             if (isNaN(vol) || isNaN(num) || vol <= 0 || num <= 0) return alert("Enter valid numbers");
  
             const ml = vol * num;
@@ -639,8 +639,8 @@
  
         function updateRequirement() {
             const bed = document.getElementById('hcw-bed-select').value;
-            const vol = parseInt(document.getElementById('hcw-volume-per-feed').value);
-            const feeds = parseInt(document.getElementById('hcw-num-feeds').value);
+            const vol = parseFloat(document.getElementById('hcw-volume-per-feed').value);
+            const feeds = parseInt(document.getElementById('hcw-num-feeds').value, 10);
             if (!bed || isNaN(vol) || isNaN(feeds)) return alert("Check all fields");
  
             db.collection("users").doc(bed).update({
@@ -684,8 +684,8 @@
             const bedId = document.getElementById('edit-form').dataset.bedId;
             const dob = document.getElementById('edit-dob').value;
             const weight = parseFloat(document.getElementById('edit-weight').value);
-            const vol = parseInt(document.getElementById('edit-volume-per-feed').value);
-            const feeds = parseInt(document.getElementById('edit-num-feeds').value);
+            const vol = parseFloat(document.getElementById('edit-volume-per-feed').value);
+            const feeds = parseInt(document.getElementById('edit-num-feeds').value, 10);
  
             db.collection("users").doc(bedId).update({
                 dob: dob ? firebase.firestore.Timestamp.fromDate(new Date(dob)) : null,
