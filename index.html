@@ -40,6 +40,7 @@
         h1{font-size:24px;font-weight:700}
         h2{font-size:20px;font-weight:600}
         h3{font-size:18px;font-weight:600}
+        .app-name{font-size:30px;font-weight:700;text-align:center;margin:6px 0 4px 0;color:var(--text)}
         label{display:block;margin-top:12px;font-weight:600;color:var(--text)}
         input,select,textarea,button{width:100%;padding:12px;margin-top:8px;border-radius:10px;border:1px solid var(--border);box-sizing:border-box;font-size:15px;font-family:inherit}
         input,select,textarea{background:#fff;color:var(--text)}
@@ -79,6 +80,14 @@
         .star-list li::before{content:"☆";position:absolute;left:0;color:var(--accent)}
         .update-banner{display:none;position:sticky;top:0;z-index:5;margin:10px 0;padding:10px 12px;background:#FFF0ED;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow)}
         .update-banner p{margin:0;font-size:13px;color:var(--text)}
+        .trend-section{margin-top:16px}
+        .trend-empty{font-size:12px;color:var(--muted);text-align:center;margin-top:8px;display:none}
+        .trend-button{background:#FFE0B2;color:var(--text);box-shadow:none;margin-top:0}
+        .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.35);z-index:20;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
+        .modal-content{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);width:100%;max-width:720px;padding:16px}
+        .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+        .modal-header h3{margin:0;text-align:left}
+        .modal-close{width:auto;padding:8px 12px;background:#E7E0EC;color:var(--text);box-shadow:none;margin-top:0}
     </style>
 </head>
 <body>
@@ -103,6 +112,7 @@
         <p>Updating to the latest version...</p>
     </div>
 
+    <div class="app-name">Milk-Connect</div>
     <h1>Expressed Breast Milk (EBM) Collection App</h1>
 
     <!-- Login -->
@@ -123,6 +133,11 @@
         <div class="disclaimer-box">
             <small>This application is solely for communication purposes.<br>
             If you have any concerns regarding updates on your baby’s condition or lactation support, please consult our team of doctors and nurses during visiting hours.</small>
+        </div>
+        <div class="disclaimer-box">
+            <small>The timing of data updates may be delayed due to unexpected ward situations or doctors’ ward rounds.<br>
+            If you do not see a new feeding plan by 11 AM, please prepare breast milk for your baby according to the existing information and enter your total breast milk volume accordingly.<br><br>
+            Thank you for your understanding.</small>
         </div>
     </div>
 
@@ -156,6 +171,11 @@
         <button class="logout" onclick="logout()">Logout</button>
 
         <div id="stats"></div>
+        <div class="section trend-section">
+            <h3>Milk Supply Trend (Last 7 Days)</h3>
+            <canvas id="mother-trend-chart" height="160"></canvas>
+            <div id="mother-trend-empty" class="trend-empty">No data available yet.</div>
+        </div>
         <div id="last-updated" class="timestamp"></div>
         <div id="today-total">Today's Total: 0 ml</div>
         <div id="celebration" class="celebration" style="display:none"></div>
@@ -216,6 +236,7 @@
                     <th>Last Updated (Admin)</th>
                     <th>Day of Life</th>
                     <th>Weight (kg)</th>
+                    <th>Trend</th>
                     <th>Edit</th>
                 </tr>
             </thead>
@@ -224,6 +245,20 @@
 
         <button class="logout" onclick="logout()">Logout</button>
     </div>
+
+    <div id="trend-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="trend-modal-title">Milk Supply Trend</h3>
+                <button class="modal-close" onclick="closeTrendModal()">Back to Overview</button>
+            </div>
+            <canvas id="admin-trend-chart" height="180"></canvas>
+            <div id="admin-trend-empty" class="trend-empty">No data available yet.</div>
+        </div>
+    </div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
@@ -340,6 +375,115 @@
             const dateStr = date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
             const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
             return `${dateStr} at ${timeStr}`;
+        }
+
+        function getLast7DateKeys() {
+            const keys = [];
+            const today = new Date();
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(today.getDate() - i);
+                keys.push(d.toISOString().slice(0,10));
+            }
+            return keys;
+        }
+
+        function formatDateLabel(dateKey) {
+            const parts = dateKey.split("-");
+            if (parts.length !== 3) return dateKey;
+            const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        }
+
+        function saveDailySupply(bedId, dateKey, volumePerBottle, numBottles, totalMl) {
+            const dateNumber = parseInt(dateKey.replace(/-/g, ""), 10);
+            return db.collection("users").doc(bedId).collection("daily_supply").doc(dateKey).set({
+                dateKey: dateKey,
+                dateNumber: dateNumber,
+                volumePerBottle: volumePerBottle,
+                numBottles: numBottles,
+                totalMl: totalMl,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+
+        let motherTrendChart = null;
+        let adminTrendChart = null;
+
+        function createTrendChart(ctx, labels, data) {
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Total Milk (ml)',
+                        data: data,
+                        borderColor: '#8D6E63',
+                        backgroundColor: 'rgba(141,110,99,0.15)',
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#8D6E63'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { precision: 0 }
+                        }
+                    }
+                }
+            });
+        }
+
+        function loadSupplyTrend(bedId, canvasId, emptyId, chartType) {
+            const dateKeys = getLast7DateKeys();
+            const emptyEl = document.getElementById(emptyId);
+            const canvas = document.getElementById(canvasId);
+            if (!canvas || !bedId) return;
+
+            const requests = dateKeys.map(key =>
+                db.collection("users").doc(bedId).collection("daily_supply").doc(key).get()
+            );
+
+            Promise.all(requests).then(results => {
+                const entries = results
+                    .filter(doc => doc.exists)
+                    .map(doc => doc.data())
+                    .sort((a, b) => (a.dateNumber || 0) - (b.dateNumber || 0));
+
+                const labels = entries.map(e => formatDateLabel(e.dateKey));
+                const data = entries.map(e => Number(e.totalMl) || 0);
+
+                if (emptyEl) emptyEl.style.display = entries.length ? 'none' : 'block';
+
+                if (chartType === 'mother') {
+                    if (motherTrendChart) motherTrendChart.destroy();
+                    motherTrendChart = createTrendChart(canvas.getContext('2d'), labels, data);
+                } else {
+                    if (adminTrendChart) adminTrendChart.destroy();
+                    adminTrendChart = createTrendChart(canvas.getContext('2d'), labels, data);
+                }
+            });
+        }
+
+        function openTrendModal(bedId, displayId) {
+            const modal = document.getElementById('trend-modal');
+            const title = document.getElementById('trend-modal-title');
+            if (title) title.textContent = `Milk Supply Trend - ${displayId || bedId}`;
+            if (modal) modal.style.display = 'flex';
+            loadSupplyTrend(bedId, 'admin-trend-chart', 'admin-trend-empty', 'admin');
+        }
+
+        function closeTrendModal() {
+            const modal = document.getElementById('trend-modal');
+            if (modal) modal.style.display = 'none';
         }
 
         function calculatePdbmRequired(targetVol, targetBottles, motherVol, motherBottles) {
@@ -518,6 +662,7 @@
                 document.getElementById('parent-section').style.display = 'block';
                 document.getElementById('current-bed').textContent = doc.data().displayId || id;
                 loadTodayData();
+                loadSupplyTrend(currentUser, 'mother-trend-chart', 'mother-trend-empty', 'mother');
                 startIdleTracking();
             });
         }
@@ -549,7 +694,9 @@
                 lastUpdateTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
                 lastUpdateMotherTimestamp: firebase.firestore.FieldValue.serverTimestamp()
             }).then(() => {
+                saveDailySupply(currentUser, today, vol, num, ml);
                 loadTodayData(); // Force refresh to show updated message/reminder
+                loadSupplyTrend(currentUser, 'mother-trend-chart', 'mother-trend-empty', 'mother');
             });
         }
 
@@ -753,6 +900,7 @@
                         <td>${adminUpdated || "-"}</td>
                         <td>Day ${dol}</td>
                         <td>${weightDisplay}</td>
+                        <td><button class="trend-button" onclick="openTrendModal('${doc.id}', '${display}')">📈</button></td>
                         <td><button class="edit" onclick="editBed('${doc.id}')">✏️</button></td>
                     `;
                     if (pdbm === 0) row.style.background = '#e8f5e9';
@@ -762,7 +910,7 @@
                 const cumRow = document.createElement('tr');
                 cumRow.className = 'total-row';
                 cumRow.innerHTML = `
-                    <td colspan="6"><strong>Total PDBM Required</strong></td>
+                    <td colspan="7"><strong>Total PDBM Required</strong></td>
                     <td colspan="4"><strong>${cumulative_pdbm} ml</strong></td>
                 `;
                 tbody.appendChild(cumRow);
@@ -783,7 +931,7 @@
         }
 
         function exportToExcel() {
-            let csv = "Bed ID,Target (ml),Target Bottles,Mother Volume per Bottle,Mother Bottles,Mother Total,PDBM Required,Last Updated\n";
+            let csv = "Bed ID,Target (ml),Target Bottles,Mother Volume per Bottle,Mother Bottles,Mother Total,PDBM Required,Last Updated (Mother),Last Updated (Admin)\n";
             const today = new Date().toISOString().slice(0,10);
 
             db.collection("users").get().then(snap => {
@@ -796,11 +944,10 @@
                     const total = d.lastUpdate === today ? (d.todayMl || 0) : 0;
                     const pdbm = calculatePdbmRequired(d.volumePerFeed || 0, d.numFeeds || 0, vol, bottles);
 
-                    let lastUpdated = "";
                     const motherUpdated = formatDateTime(d.lastUpdateMotherTimestamp || d.lastUpdateTimestamp);
-                    if (motherUpdated) lastUpdated = motherUpdated;
+                    const adminUpdated = formatDateTime(d.lastUpdateAdminTimestamp);
 
-                    csv += `${display},${target},${d.numFeeds||0},${vol},${bottles},${total},${pdbm},"${lastUpdated}"\n`;
+                    csv += `${display},${target},${d.numFeeds||0},${vol},${bottles},${total},${pdbm},"${motherUpdated}","${adminUpdated}"\n`;
                 });
 
                 const blob = new Blob([csv], {type: 'text/csv'});
